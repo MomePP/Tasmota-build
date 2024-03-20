@@ -4260,7 +4260,7 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 #undef CODE_IMAGE_STR
 #define CODE_IMAGE_STR "GoGo Tasmota"
 
-#define USER_TEMPLATE "{\"NAME\":\"GoGoTasmota32\",\"GPIO\":[1,1,608,1,1,1,1,1,640,1,1,0,0,0,0,0,0,0,1,1,3232,3200],\"FLAG\":0,\"BASE\":1}"
+#define USER_TEMPLATE "{\"NAME\":\"GoGoTasmota32\",\"GPIO\":[1,1,608,1,1,1,1,1,640,32,1,0,0,0,0,0,0,0,0,0,3232,3200],\"FLAG\":0,\"BASE\":1}"
 #undef MODULE
 #define MODULE USER_MODULE
 
@@ -4610,7 +4610,6 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 
 // ------------------------------------------------
 
-#define USE_SR04                                 // Add support for HC-SR04 ultrasonic devices (+1k code)
 #define USE_TM1638                               // Add support for TM1638 switches copying Switch1 .. Switch8 (+1k code)
 // #define USE_HX711                                // Add support for HX711 load cell (+1k5 code)
 //   #define USE_HX711_GUI                          // Add optional web GUI to HX711 as scale (+1k8 code)
