@@ -4265,7 +4265,7 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 #define MODULE USER_MODULE
 
 #undef MQTT_USE
-#define MQTT_USE               false              // [SetOption3] Select default MQTT use (false = Off, true = On)
+#define MQTT_USE               true              // [SetOption3] Select default MQTT use (false = Off, true = On)
 
 // -- MQTT - Telemetry ----------------------------
 #undef TELE_PERIOD
