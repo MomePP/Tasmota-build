@@ -35,9 +35,10 @@ lv_widgets = ['obj',
               'dropdown', 'image', 'label', 'line', 'roller', 'slider',
               'switch', 'table', 'textarea',
               # added in LVGL 9
-              'spangroup', 'span', 'scale',
+              'spangroup', 'span',
+              'scale_section', 'scale',   # 'scale_section' needs to be before 'scale' to capture more selective first
               ]
-lv_widgets_no_class = ['span']      # widgets that don't have a lv_obj class
+lv_widgets_no_class = ['span', 'scale_section']      # widgets that don't have a lv_obj class
 # extra widgets
 lv_widgets = lv_widgets + [ 'chart', 'imagebutton', 'led', 'msgbox', 'spinbox', 'spinner', 'keyboard', 'tabview', 'tileview' , 'list',
                             'animimg', 'calendar', 'menu']
@@ -232,24 +233,25 @@ class type_mapper_class:
   # Group 1: 'void'
   # Group 2: 'lv_obj_set_parent'
   # Group 3: 'lv_obj_t * obj, lv_obj_t * parent'
-  parse_func_regex = re.compile("(.*?)\s(\w+)\((.*?)\)")
+  parse_func_regex = re.compile(r"(.*?)\s(\w+)\((.*?)\)")
   
   # parse call argument type
   # Ex: 'const lv_obj_t * parent' -> 'const ', 'lv_obj_t', ' * ', 'parent'
   # Ex: 'bool auto_fit' -> '', 'bool', ' ', 'auto_fit'
-  parse_arg_regex = re.compile("(\w+\s+)?(\w+)([\*\s]+)(\w+)(\[\])?")
+  parse_arg_regex = re.compile(r"(\w+\s+)?(\w+)([\*\s]+)(\w+)(\[\])?")
 
   # the following types are skipped without warning, because it would be too complex to adapt (so we don't map any function using or returning these types)
   skipping_type = [
     "bvm *",                      # Berry
     "lv_global_t *",              # reading globals is not useful in Berry
-    "lv_event_dsc_t *",           # internal implementation, use functions instead
+    # "lv_event_dsc_t *",           # internal implementation, use functions instead
     "lv_draw_task_t *",           # skip low-level tasks for now
     "lv_draw_buf_t *",            # low-level
     "lv_calendar_date_t *",       # skip calendar for now
     "lv_vector_dsc_t",            # see later if we need this
     "lv_point_precise_t",         # see later if we need this
     "void **",                    # edge case of lv_animimg_get_src()
+    "va_list",
     "lv_matrix_t *",
     "lv_event_list_t *",
     "lv_style_value_t *",
@@ -338,6 +340,7 @@ class type_mapper_class:
     "lv_style_res_t": "i",
     # LVGL 9
     "lv_image_align_t": "i",
+    "lv_text_flag_t": "i",
     "lv_display_rotation_t": "i",
     "lv_color_format_t": "i",
     "lv_value_precise_t": "i",
@@ -347,7 +350,6 @@ class type_mapper_class:
     "lv_span_mode_t": "i",
     "lv_vector_path_t *": "c",    # treat as opaque pointer
     "lv_vector_dsc_t *": "c",     # treat as opaque pointer
-    "lv_scale_section_t *": "c",  # treat as opaque pointer
     "lv_point_t *": "c",          # treat as opaque pointer
     "lv_hit_test_info_t *": "c",  # treat as opaque pointer
     "lv_screen_load_anim_t": "i",
@@ -363,6 +365,7 @@ class type_mapper_class:
     "lv_menu_mode_header_t": "i",
     "lv_menu_mode_root_back_button_t": "i",
     "lv_point_precise_t []": "lv_point_arr",
+    "lv_obj_point_transform_flag_t": "i",
 
     "int32_t *": "lv_int_arr",
     "int32_t []": "lv_int_arr",
@@ -408,6 +411,7 @@ class type_mapper_class:
     "lv_draw_arc_dsc_t *": "lv_draw_arc_dsc",
     "lv_point_precise_t *": "lv_point_precise",
     "lv_draw_image_dsc_t *": "lv_draw_image_dsc",
+    "lv_event_dsc_t *": "lv_event_dsc",
 
     "_lv_obj_t *": "lv_obj",
     "lv_obj_t *": "lv_obj",
@@ -422,11 +426,12 @@ class type_mapper_class:
     "lv_indev_t *": "lv_indev",
     "lv_point_t []": "lv_point_arr",
     "lv_span_t *": "lv_span",
+    "lv_scale_section_t *": "lv_scale_section",  # treat as opaque pointer
     # "lv_image_header_t *": "lv_image_header",
     "lv_image_dsc_t *": "lv_image_dsc",
     "lv_ts_calibration_t *": "lv_ts_calibration",
     "lv_style_transition_dsc_t *": "lv_style_transition_dsc",
-    "lv_layer_t *": "c",               # LVGL9
+    "lv_layer_t *": "lv_layer",               # LVGL9
     # "_lv_draw_layer_ctx_t *": "lv_draw_layer_ctx",
     "lv_grad_dsc_t *": "lv_grad_dsc",
     "lv_color_filter_dsc_t *": "lv_color_filter_dsc",
@@ -503,16 +508,16 @@ class type_mapper_class:
         print(f"# mapping not used '{k}'", file=sys.stderr)
 
   def clean_c_line(self, l_raw):
-    l_raw = re.sub('//.*$', '', l_raw)                  # remove trailing comments
-    l_raw = re.sub('LV_ATTRIBUTE_FAST_MEM ', '', l_raw) # remove LV_ATTRIBUTE_FAST_MEM marker
-    l_raw = re.sub('\s+', ' ', l_raw)                   # replace any multi-space with a single space
+    l_raw = re.sub(r'//.*$', '', l_raw)                  # remove trailing comments
+    l_raw = re.sub(r'LV_ATTRIBUTE_FAST_MEM ', '', l_raw) # remove LV_ATTRIBUTE_FAST_MEM marker
+    l_raw = re.sub(r'\s+', ' ', l_raw)                   # replace any multi-space with a single space
     l_raw = l_raw.strip(" \t\n\r")                      # remove leading or trailing spaces
-    l_raw = re.sub('static ', '', l_raw)                # remove `static` qualifier
-    l_raw = re.sub('inline ', '', l_raw)                # remove `inline` qualifier
-    l_raw = re.sub('const\s+char\s*\*', 'constchar *', l_raw)
-    l_raw = re.sub('^char\s*\*', 'retchar *', l_raw)    # special case for returning a char*
-    l_raw = re.sub('const ', '', l_raw)
-    l_raw = re.sub('struct ', '', l_raw)
+    l_raw = re.sub(r'static ', '', l_raw)                # remove `static` qualifier
+    l_raw = re.sub(r'inline ', '', l_raw)                # remove `inline` qualifier
+    l_raw = re.sub(r'const\s+char\s*\*', 'constchar *', l_raw)
+    l_raw = re.sub(r'^char\s*\*', 'retchar *', l_raw)    # special case for returning a char*
+    l_raw = re.sub(r'const ', '', l_raw)
+    l_raw = re.sub(r'struct ', '', l_raw)
     return l_raw
 
   def parse_c_line(self, l_raw):
@@ -683,9 +688,9 @@ with open(lv_module_file) as f:
     l_raw = l_raw.strip(" \t\n\r")    # remove leading or trailing spaces
     if l_raw.startswith("//"):
       lv_module.append( [ None, l_raw ] )   # if key in None then add comment line
-    l_raw = re.sub('//.*$', '', l_raw) # remove trailing comments
-    l_raw = re.sub('\s+', '', l_raw) # remove all spaces
-    l_raw = re.sub(',.*$', '', l_raw) # remove comma and anything after it
+    l_raw = re.sub(r'//.*$', '', l_raw) # remove trailing comments
+    l_raw = re.sub(r'\s+', '', l_raw) # remove all spaces
+    l_raw = re.sub(r',.*$', '', l_raw) # remove comma and anything after it
     if (len(l_raw) == 0): continue
 
     k_v = l_raw.split("=")
@@ -888,6 +893,7 @@ extern int lv_x_member(bvm *vm);
 extern int lv_x_tostring(bvm *vm);       // generic function
 
 extern int lv_be_style_init(bvm *vm);
+extern int lv_be_style_del(bvm *vm);
 extern int lv_be_anim_init(bvm *vm);
 extern int lv_x_tostring(bvm *vm);
 
@@ -899,20 +905,6 @@ extern int lvbe_theme_create(bvm *vm);
 """)
 
 # expose all extern definitions:
-# Ex:
-#
-# /* `lv_canvas` external functions definitions */
-# extern int lvbe_canvas_create(bvm *vm);
-# extern int lvbe_canvas_set_buffer(bvm *vm);
-# ...
-#
-for subtype, flv in lv.items():
-  print(f"/* `lv_{subtype}` external functions definitions */")
-  for f in sorted(flv, key=lambda x: x.be_name):
-    print(f"extern int {f.c_func_name}(bvm *vm);")
-  
-  print()
-
 for subtype, flv in lv.items():
   print(f"""extern int be_ntv_lv_{subtype}_init(bvm *vm);""")
 
@@ -934,6 +926,7 @@ print("""
 class be_class_lv_style (scope: global, name: lv_style, strings: weak) {
     _p, var
     init, func(lv_be_style_init)
+    del, func(lv_be_style_del)
     tostring, func(lv_x_tostring)
     member, func(lv_x_member)
 }

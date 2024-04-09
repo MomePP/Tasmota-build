@@ -40,6 +40,7 @@
 #endif
 
 // Libraries
+#include <WiFiHelper.h>
 #include <ESP8266HTTPClient.h>              // Ota
 #include <ESP8266httpUpdate.h>              // Ota
 #ifdef ESP32
@@ -225,7 +226,9 @@ bool tasconsole_serial = false;
 
 #if ARDUINO_USB_MODE
 //#warning **** TasConsole ARDUINO_USB_MODE ****
-//HWCDC HWCDCSerial;                        // Already defined in HWCDC.cpp
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,1,3))
+HWCDC HWCDCSerial;
+#endif
 TASCONSOLE TasConsole{HWCDCSerial};         // ESP32C3/C6/S3 embedded USB using JTAG interface
 //#warning **** TasConsole uses HWCDC ****
 #else   // No ARDUINO_USB_MODE
@@ -399,7 +402,6 @@ struct TasmotaGlobal_t {
   uint8_t module_type;                      // Current copy of Settings->module or user template type
   uint8_t emulated_module_type;             // Emulated module type as requested by ESP32
   uint8_t last_source;                      // Last command source
-  uint8_t last_command_source;              // Last command source
   uint8_t shutters_present;                 // Number of actual define shutters
   uint8_t discovery_counter;                // Delayed discovery counter
   uint8_t power_on_delay;                   // Delay relay power on to reduce power surge (SetOption47)
@@ -407,13 +409,7 @@ struct TasmotaGlobal_t {
   uint8_t restore_powered_off_led_counter;  // Seconds before powered-off LED (LEDLink) is restored
   uint8_t pwm_dimmer_led_bri;               // Adjusted brightness LED level
 #endif  // USE_PWM_DIMMER
-
-#ifdef MQTT_DATA_STRING
   String mqtt_data;                         // Buffer filled by Response functions
-#else
-  char mqtt_data[MESSZ];                    // MQTT publish buffer
-#endif
-
   char version[16];                         // Composed version string like 255.255.255.255
   char image_name[33];                      // Code image and/or commit
   char hostname[33];                        // Composed Wifi hostname
