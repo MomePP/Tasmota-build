@@ -4275,7 +4275,10 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 #ifdef CUSTOM_CONFIG_GOGOBOARD
 
 #undef CODE_IMAGE_STR
-#define CODE_IMAGE_STR "GoGoTasmota32"
+#define CODE_IMAGE_STR "GoGoTasmotaCore"
+
+#undef FRIENDLY_NAME
+#define FRIENDLY_NAME "GoGoTasmotaCore"
 
 #define USER_TEMPLATE "{\"NAME\":\"GoGo Tasmota\",\"GPIO\":[1,1,608,1,1,1,1,1,640,32,1,0,0,0,0,0,0,0,0,0,3232,3200],\"FLAG\":0,\"BASE\":1}"
 #undef MODULE
