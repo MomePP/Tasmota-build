@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 
 ## [13.4.1.2]
 ### Added
+- esp32_partition_app3904k_fs3392k partition scheme for 8MB ESP32S3
+- TCP Tx En GPIO type
+- Berry `webserver.content_close()`
+- HASPmota demo of Renaissance Watch for 480x480 displays
+- ``Publish3`` to send binary data encoded as Hex, disabled in safeboot
 
 ### Breaking Changed
 - ESP32-C3 OTA binary name from `tasmota32c3cdc.bin` to `tasmota32c3.bin` with USB HWCDC and fallback to serial (#21212)
@@ -12,10 +17,26 @@ All notable changes to this project will be documented in this file.
 - ESP32-S3 OTA binary name from `tasmota32s3cdc.bin` to `tasmota32s3.bin` with USB HWCDC and fallback to serial (#21212)
 
 ### Changed
+- uDisplay fast drawing on RGB displays
+- HDMI CEC synchronously sends messages
+- Zigbee startup event triggered after plugins are loaded
+- Reduced safeboot size by 2.9KB
+- Changed internal macro `APP_SLEEP` to `TASMOTA_SLEEP` to specify default sleep in ms
+- ESP32 Core3 platform update from 2024.04.12 to 2024.05.10 (#21347)
 
 ### Fixed
+- HASPmota `align` attribute and expand PNG cache
+- LVGL restore `lv_palette` functions
+- IPv6 support in safeboot
+- LVGL fix memory allocation of flush buffers
+- Berry `web_add_handler` called before `Webserver` is initialized
+- Put back wifi IPv6 workaround
+- Berry `math.inf`, `math.isinf()` and fixed json ouput for `inf` and `nan`
+- `EthType` for Core3
+- Compilation of Ethernet when SPI drivers are disabled
 
 ### Removed
+- LVGL disabled vector graphics
 
 ## [13.4.1.1] 20240418
 ### Added

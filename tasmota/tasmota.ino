@@ -135,8 +135,6 @@ struct WIFI {
   bool wifi_test_AP_TIMEOUT = false;
   bool wifi_Test_Restart = false;
   bool wifi_Test_Save_SSID2 = false;
-  // IPv6 support, not guarded with #if LWIP_IPV6 to avoid bloating code with ifdefs
-  bool ipv6_local_link_called = false;           // did we already enable IPv6 Local-Link address, needs to be redone at each reconnect
 } Wifi;
 
 typedef struct {
@@ -475,9 +473,11 @@ void setup(void) {
 #ifdef USE_USB_CDC_CONSOLE
 
   bool is_connected_to_USB = false;
+  TasConsole.setRxBufferSize(INPUT_BUFFER_SIZE);
+  TasConsole.begin(115200);           // always start CDC to test plugged cable
 #if SOC_USB_SERIAL_JTAG_SUPPORTED  // Not S2
   for (uint32_t i = 0; i < 5; i++) {  // wait up to 250 ms - maybe a shorter time is enough
-      is_connected_to_USB = usb_serial_jtag_is_connected();
+      is_connected_to_USB = HWCDCSerial.isPlugged();
       if (is_connected_to_USB) { break; }
       delay(50);
   }
@@ -486,19 +486,20 @@ void setup(void) {
 #endif  // SOC_USB_SERIAL_JTAG_SUPPORTED
 
   if (is_connected_to_USB) {
-    TasConsole.setRxBufferSize(INPUT_BUFFER_SIZE);
-//    TasConsole.setTxBufferSize(INPUT_BUFFER_SIZE);
-    TasConsole.begin(115200);    // Will always be 115200 bps
+    // TasConsole is already running
 #if !ARDUINO_USB_MODE
     USB.begin();                 // This needs a serial console with DTR/DSR support
 #endif  // No ARDUINO_USB_MODE
     TasConsole.println();
     AddLog(LOG_LEVEL_INFO, PSTR("CMD: Using USB CDC"));
   } else {
+    #if SOC_USB_SERIAL_JTAG_SUPPORTED  // Not S2
+    HWCDCSerial.~HWCDC();       // not needed, deinit CDC
+    #endif  // SOC_USB_SERIAL_JTAG_SUPPORTED
     // Init command serial console preparing for AddLog use
     Serial.begin(TasmotaGlobal.baudrate);
     Serial.println();
-    TasConsole = Serial; // Fallback
+    TasConsole = Serial;        // Fallback
     tasconsole_serial = true;
     AddLog(LOG_LEVEL_INFO, PSTR("CMD: Fall back to serial port, no SOF packet detected on USB port"));
   }

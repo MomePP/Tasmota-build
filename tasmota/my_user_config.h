@@ -286,7 +286,7 @@ https://rya.nc/tasmota-fingerprint.html"
 #define APP_BISTABLE_PULSE     40                // [SetOption45] Pulse time in ms for two coil bistable latching relays
 
 #define APP_NORMAL_SLEEP       false             // [SetOption60] Enable normal sleep instead of dynamic sleep
-#define APP_SLEEP              0                 // [Sleep] Sleep time to lower energy consumption (0 = Off, 1 - 250 mSec),
+#define TASMOTA_SLEEP          50                // [Sleep] Sleep time to lower energy consumption (0 = Off, value in milliseconds),
 #define PWM_MAX_SLEEP          10                // Sleep will be lowered to this value when light is on, to avoid flickering, and when buzzer is on for better on/off period accuracy
 
 #define KEY_DEBOUNCE_TIME      50                // [ButtonDebounce] Number of mSeconds button press debounce time
@@ -1362,5 +1362,18 @@ https://rya.nc/tasmota-fingerprint.html"
     #define SET_ESP32_STACK_SIZE (24 * 1024)
   #endif
 #endif // USE_LVGL && USE_LVGL_FREETYPE
+
+/*********************************************************************************************\
+ * Post-process I2S
+\*********************************************************************************************/
+
+#if defined(USE_I2S_ALL)
+  #define USE_I2S
+  #define USE_I2S_AUDIO
+  #define USE_I2S_MIC
+  #define USE_SHINE
+  #define MP3_MIC_STREAM
+  #define USE_I2S_AUDIO_BERRY
+#endif // USE_I2S_ALL
 
 #endif  // _MY_USER_CONFIG_H_
