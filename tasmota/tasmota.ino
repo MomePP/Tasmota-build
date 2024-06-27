@@ -83,7 +83,9 @@
 #include <LittleFS.h>
 #ifdef USE_SDCARD
 #include <SD.h>
+#ifdef SOC_SDMMC_HOST_SUPPORTED
 #include <SD_MMC.h>
+#endif  // SOC_SDMMC_HOST_SUPPORTED
 #endif  // USE_SDCARD
 #include "FFat.h"
 #include "FS.h"
@@ -325,7 +327,8 @@ struct TasmotaGlobal_t {
   uint8_t busy_time;                        // Time in ms to allow executing of time critical functions
   uint8_t init_state;                       // Tasmota init state
   uint8_t heartbeat_inverted;               // Heartbeat pulse inverted flag
-  uint8_t spi_enabled;                      // SPI configured
+  uint8_t spi_enabled;                      // SPI configured (bus1)
+  uint8_t spi_enabled2;                     // SPI configured (bus2)
   uint8_t soft_spi_enabled;                 // Software SPI configured
   uint8_t blinks;                           // Number of LED blinks
   uint8_t restart_flag;                     // Tasmota restart flag
@@ -380,7 +383,7 @@ struct TasmotaGlobal_t {
 #ifdef USE_BERRY
   bool berry_fast_loop_enabled = false;     // is Berry fast loop enabled, i.e. control is passed at each loop iteration
 #endif  // USE_BERRY
-} TasmotaGlobal;
+} TasmotaGlobal = { 0 };
 
 TSettings* Settings = nullptr;
 
@@ -411,6 +414,10 @@ void setup(void) {
 #endif  // CONFIG_IDF_TARGET_ESP32
 #endif  // ESP32
 
+#ifdef USE_ESP32_WDT
+  enableLoopWDT();          // enabled WDT Watchdog on Arduino `loop()` - must return before 5s or called `feedLoopWDT();` - included in `yield()`
+#endif // USE_ESP32_WDT
+
   RtcPreInit();
   SettingsInit();
 
@@ -418,7 +425,6 @@ void setup(void) {
   EmergencyReset();
 #endif  // USE_EMERGENCY_RESET
 
-  memset(&TasmotaGlobal, 0, sizeof(TasmotaGlobal));
   TasmotaGlobal.baudrate = APP_BAUDRATE;
   TasmotaGlobal.seriallog_timer = SERIALLOG_TIMER;
   TasmotaGlobal.temperature_celsius = NAN;
@@ -428,7 +434,7 @@ void setup(void) {
   TasmotaGlobal.active_device = 1;
   TasmotaGlobal.global_state.data = 0xF;  // Init global state (wifi_down, mqtt_down) to solve possible network issues
   TasmotaGlobal.maxlog_level = LOG_LEVEL_DEBUG_MORE;
-  TasmotaGlobal.seriallog_level = LOG_LEVEL_INFO;  // Allow specific serial messages until config loaded
+  TasmotaGlobal.seriallog_level = (SERIAL_LOG_LEVEL > LOG_LEVEL_INFO) ? SERIAL_LOG_LEVEL : LOG_LEVEL_INFO;  // Allow specific serial messages until config loaded and allow more logging than INFO
   TasmotaGlobal.power_latching = 0x80000000;
 
   RtcRebootLoad();
@@ -454,7 +460,7 @@ void setup(void) {
   // Init settings and logging preparing for AddLog use
 #ifdef PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED
   ESP.setIramHeap();
-  Settings = (TSettings*)malloc(sizeof(TSettings));             // Allocate in "new" 16k heap space
+  Settings = (TSettings*)calloc(1, sizeof(TSettings));          // Allocate in "new" 16k heap space
   TasmotaGlobal.log_buffer = (char*)malloc(LOG_BUFFER_SIZE);    // Allocate in "new" 16k heap space
   ESP.resetHeap();
   if (TasmotaGlobal.log_buffer == nullptr) {
@@ -465,7 +471,7 @@ void setup(void) {
   }
 #endif  // PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED
   if (Settings == nullptr) {
-    Settings = (TSettings*)malloc(sizeof(TSettings));
+    Settings = (TSettings*)calloc(1, sizeof(TSettings));
   }
 
 #ifdef ESP32

@@ -189,9 +189,9 @@ bool RtcRebootValid(void) {
 
 extern "C" {
 #include "spi_flash.h"
-#if ESP_IDF_VERSION_MAJOR >= 5
-  #include "spi_flash_mmap.h"
-#endif
+#ifdef ESP32
+#include "spi_flash_mmap.h"
+#endif  // ESP32
 }
 
 #ifdef ESP8266
@@ -434,7 +434,7 @@ bool SettingsBufferAlloc(uint32_t upload_size) {
 
   }
 
-  if (!(settings_buffer = (uint8_t *)calloc(settings_size, 1))) {
+  if (!(settings_buffer = (uint8_t *)calloc(1, settings_size))) {
     AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION D_UPLOAD_ERR_2));  // Not enough (memory) space
     return false;
   }
@@ -1137,7 +1137,7 @@ void SettingsDefaultSet2(void) {
   flag5.mqtt_status_retain |= MQTT_STATUS_RETAIN;
   flag5.mqtt_switches |= MQTT_SWITCHES;
   flag5.mqtt_persistent |= ~MQTT_CLEAN_SESSION;
-  flag6.mqtt_disable_sserialrec |= MQTT_DISABLE_SSERIALRECEIVED;
+  flag6.mqtt_disable_publish |= MQTT_DISABLE_SSERIALRECEIVED;
   flag6.mqtt_disable_modbus |= MQTT_DISABLE_MODBUSRECEIVED;
 //  flag.mqtt_serial |= 0;
   flag.device_index_enable |= MQTT_POWER_FORMAT;
@@ -1424,6 +1424,9 @@ void SettingsDefaultSet2(void) {
   flag5.mi32_enable |= BLE_ESP32_ENABLE;
   #endif
 #endif // FIRMWARE_MINIMAL
+
+  // Matter
+  flag6.matter_enabled |= MATTER_ENABLED;
 
   Settings->flag = flag;
   Settings->flag2 = flag2;
@@ -1812,6 +1815,12 @@ void SettingsDelta(void) {
 */
     if (Settings->version < 0x0D040004) {  // 13.4.0.4
       Settings->power_lock = 0;
+    }
+    if (Settings->version < 0x0E000004) {  // 14.0.0.4
+      Settings->tcp_baudrate = (uint16_t)Settings->sserial_mode * 4;
+    }
+    if (Settings->version < 0x0E010002) {  // 14.1.0.2
+      Settings->sserial_mode = Settings->sbflag1.ex_serbridge_console;
     }
 
     Settings->version = TASMOTA_VERSION;

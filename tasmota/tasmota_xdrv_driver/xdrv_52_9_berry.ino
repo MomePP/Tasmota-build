@@ -37,6 +37,7 @@ extern "C" {
 #include "be_vm.h"
 #include "ZipReadFS.h"
 #include "ccronexpr.h"
+#include "berry_custom.h"
 
 extern "C" {
   extern void be_load_custom_libs(bvm *vm);
@@ -893,6 +894,7 @@ bool Xdrv52(uint32_t function)
         BrLoad("autoexec.be");   // run autoexec.be at first tick, so we know all modules are initialized
         berry.autoexec_done = true;
 
+#ifdef USE_WEBSERVER
         // check if `web_add_handler` was missed, for example because of Berry VM restart
         if (!berry.web_add_handler_done) {
           bool network_up = WifiHasIP();
@@ -904,6 +906,7 @@ bool Xdrv52(uint32_t function)
             berry.web_add_handler_done = true;
           }
         }
+#endif  // USE_WEBSERVER
       }
       if (TasmotaGlobal.berry_fast_loop_enabled) {    // call only if enabled at global level
         callBerryFastLoop(false);      // call `tasmota.fast_loop()` optimized for minimal performance impact
@@ -984,6 +987,9 @@ bool Xdrv52(uint32_t function)
 
     case FUNC_JSON_APPEND:
       callBerryEventDispatcher(PSTR("json_append"), nullptr, 0, nullptr);
+      break;
+    case FUNC_AFTER_TELEPERIOD:
+      callBerryEventDispatcher(PSTR("after_teleperiod"), nullptr, 0, nullptr);
       break;
 
     case FUNC_BUTTON_PRESSED:
