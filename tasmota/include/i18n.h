@@ -46,7 +46,9 @@
 #define D_JSON_BSSID "BSSId"
 #define D_JSON_BUTTON "Button"
 #define D_JSON_BUILDDATETIME "BuildDateTime"
+#define D_JSON_CAPACITY "Capacity"
 #define D_JSON_CHANNEL "Channel"
+#define D_JSON_CHARGING "Charging"
 #define D_JSON_CO2 "CarbonDioxide"
 #define D_JSON_CODINGRATE4 "CodingRate4"
 #define D_JSON_COMMAND "Command"
@@ -815,7 +817,8 @@
 #define D_CMND_DALI_DIMMER                "dim"
 
 // Commands xsns_02_analog.ino
-#define D_CMND_ADCPARAM "AdcParam"
+#define D_CMND_ADCGPIO "Gpio"
+#define D_CMND_ADCPARAM "Param"
 
 // Commands xsns_05_ds18x20.ino
 #define D_CMND_DS_ALIAS "Alias"

@@ -486,6 +486,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 
 #endif  // FIRMWARE_MINICUSTOM *******************************************************************
 
+
 // Tasmota32 for 2M Devices
 
 #ifdef CUSTOM_CONFIG_TASMOTA32_2M  // *******************************************************************
@@ -759,19 +760,42 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef OTA_URL
 #define OTA_URL ""
 
+//#undef USE_WEBSERVER
+#undef USE_BERRY
+#undef USE_MATTER_DEVICE
+
 #undef USE_HOME_ASSISTANT
+#undef USE_TASMOTA_DISCOVERY
+#undef USE_DISCOVERY
+#undef USE_IMPROV
+#undef USE_SERIAL_BRIDGE
 
-#undef USE_BERRY                                 // Disable Berry scripting language
+#undef USE_RULES
+#undef USE_EXPRESSION
+#undef SUPPORT_IF_STATEMENT
+#undef SUPPORT_MQTT_EVENT
 
-#ifndef USE_MI_EXT_GUI
-  #define USE_BLE_ESP32                            // Enable full BLE driver
-  #define USE_EQ3_ESP32
-#endif // USE_MI_EXT_GUI
-#define USE_MI_ESP32                             // (ESP32 only) Add support for ESP32 as a BLE-bridge (+9k2 mem, +292k flash)
+#ifdef USE_MI_ESP32
+#define USE_BERRY
+#define USE_WEBCLIENT
+#define USE_WEBCLIENT_HTTPS
+#define USE_MI_EXT_GUI
+#endif
+
+#undef USE_ESP32_SENSORS
+#undef GUI_TRASH_FILE
+#undef GUI_EDIT_FILE
+#undef USE_AUTOCONF
 
 #undef USE_LIGHT
+#undef USE_EMULATION
+#undef USE_EMULATION_HUE
+#undef USE_EMULATION_WEMO
 #undef USE_WS2812
 
+#undef ROTARY_V1
+#undef USE_EEPROM
+#undef USE_TIMERS
 #undef USE_COUNTER
 #undef USE_ADC
 #undef USE_GPIO_VIEWER
@@ -786,11 +810,17 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_IR_REMOTE_FULL                       // Activate all protocols from IRremoteESP8266 - activating this option will ignore all other USE_IR_REMOTE_* options and set them all to active
 #define _IR_ENABLE_DEFAULT_ false
 #undef USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k3 code, 0k3 mem, 48 iram)
+#undef _IR_ENABLE_DEFAULT_
 #undef DECODE_HASH
-#define DECODE_HASH false
 #undef USE_IR_SEND_NEC
+#undef DECODE_NEC
+#undef DECODE_NEC
 #undef USE_IR_SEND_RC5
+#undef SEND_RC5
+#undef DECODE_RC5
 #undef USE_IR_SEND_RC6
+#undef SEND_RC6
+#undef DECODE_RC6
 #undef USE_IR_RECEIVE                           // Support for IR receiver (+7k2 code, 264 iram)
 #undef USE_AC_ZERO_CROSS_DIMMER
 #undef USE_PWM_DIMMER                           // Add support for MJ-SD01/acenx/NTONPOWER PWM dimmers (+4k5 code)
@@ -833,6 +863,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_DS18x20                              // Add support for DS18x20 sensors with id sort, single scan and read retry (+1k3 code)
 #undef USE_ONEWIRE
 
+#undef USE_I2C
 //#define USE_I2C                                  // I2C using library wire (+10k code, 0k2 mem, 124 iram)
 //#define USE_HTU                                // [I2cDriver9] Enable HTU21/SI7013/SI7020/SI7021 sensor (I2C address 0x40) (+1k5 code)
 //#define USE_BMP                                // [I2cDriver10] Enable BMP085/BMP180/BMP280/BME280 sensors (I2C addresses 0x76 and 0x77) (+4k4 code)
@@ -896,6 +927,8 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 //  #define USE_BM8563                           // [I2cDriver59] Enable BM8563 RTC - found in M5Stack - support both I2C buses on ESP32 (I2C address 0x51) (+2.5k code)
 //  #define USE_PCF85363                         // [I2cDriver66] Enable PCF85363 RTC - found Shelly 3EM (I2C address 0x51) (+0k7 code)
 
+#undef USE_SPI
+#undef USE_SDCARD
 //#define USE_SPI                                // Hardware SPI using GPIO12(MISO), GPIO13(MOSI) and GPIO14(CLK) in addition to two user selectable GPIOs(CS and DC)
 //#define USE_RC522                              // Add support for MFRC522 13.56Mhz Rfid reader (+6k code)
 //#define USE_MCP2515                            // Add support for can bus using MCP2515 (+7k code)
@@ -946,7 +979,15 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 //  #define USE_THEO_V2                            // Add support for decoding Theo V2 sensors as documented on https://sidweb.nl using 434MHz RF sensor receiver (+1k4 code)
 //  #define USE_ALECTO_V2                          // Add support for decoding Alecto V2 sensors like ACH2010, WS3000 and DKW2012 using 868MHz RF sensor receiver (+1k7 code)
 
+#ifdef USE_BLE_FULL
+  #define USE_WEBSERVER
+  #define USE_BLE_ESP32                          // Enable full BLE driver
+  #define USE_EQ3_ESP32
+  #define USE_MI_ESP32                             // (ESP32 only) Add support for ESP32 as a BLE-bridge (+9k2 mem, +292k flash)
+#endif // USE_BLE_FULL
+
 #endif // CUSTOM_CONFIG_BLUETOOTH_C2
+
 
 /*
  oooooooooooo ooooo   .oooooo.    oooooooooo.  oooooooooooo oooooooooooo

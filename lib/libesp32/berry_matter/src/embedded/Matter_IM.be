@@ -74,7 +74,7 @@ class Matter_IM
     if   opcode == 0x01   # Status Response
       return self.process_status_response(msg, val)
     elif opcode == 0x02   # Read Request
-      # self.send_ack_now(msg)      # to improve latency, we don't automatically Ack on invoke request
+      self.send_ack_now(msg)
       return self.process_read_request_pull(msg, val)
     elif opcode == 0x03   # Subscribe Request
       self.send_ack_now(msg)
@@ -89,7 +89,8 @@ class Matter_IM
       self.send_ack_now(msg)
       return self.process_write_request(msg, val)
     elif opcode == 0x07   # Write Response
-      return self.process_write_response(msg, val)
+      # return self.process_write_response(msg, val)  # not implemented for Matter device
+      return false
     elif opcode == 0x08   # Invoke Request
       # self.send_ack_now(msg)      # to improve latency, we don't automatically Ack on invoke request
       return self.process_invoke_request(msg, val)
@@ -111,9 +112,13 @@ class Matter_IM
   def process_incoming_ack(msg)
     # check if there is an exchange_id interested in receiving this
     var message = self.find_sendqueue_by_exchangeid(msg.exchange_id)
-    # log(format("MTR: process_incoming_ack exch=%i message=%i", msg.exchange_id, message != nil ? 1 : 0), 4)
+    # log(format("MTR: process_incoming_ack exch=%i message=%i", msg.exchange_id, message != nil ? 1 : 0), 3)
     if message
-      return message.ack_received(msg)                # dispatch to IM_Message
+      var ret = message.ack_received(msg)                # dispatch to IM_Message
+      if message.finished
+        self.remove_sendqueue_by_exchangeid(msg.exchange_id)
+      end
+      return ret
     end
     return false
   end
@@ -137,13 +142,12 @@ class Matter_IM
     while idx < size(self.send_queue)
       var message = self.send_queue[idx]
 
-      if !message.finish && message.ready
+      if !message.finished && message.ready
         message.send_im(responder)         # send message
       end
 
-      if message.finish
-        log("MTR: remove IM message exch="+str(message.resp.exchange_id), 4)
-        self.send_queue.remove(idx)
+      if message.finished
+        self.remove_sendqueue_by_exchangeid(message.resp.exchange_id)
       else
         idx += 1
       end
@@ -169,11 +173,12 @@ class Matter_IM
   #############################################################
   # find in send_queue by exchangeid
   #
-  def remove_sendqueue_by_exchangeid(exchangeid)
-    if exchangeid == nil    return end
+  def remove_sendqueue_by_exchangeid(exchange_id)
+    if exchange_id == nil    return end
     var idx = 0
     while idx < size(self.send_queue)
-      if self.send_queue[idx].get_exchangeid() == exchangeid
+      if self.send_queue[idx].get_exchangeid() == exchange_id
+        # log(f"MTR: remove IM message exch={exchange_id}", 3)
         self.send_queue.remove(idx)
       else
         idx += 1
@@ -314,7 +319,7 @@ class Matter_IM
   #     0 = EnableTagCompression bool opt
   #     1 = Node
   #     2 = Endpoint
-  #     3 = Cluste
+  #     3 = Cluster
   #     4 = Attribute
   #     5 = ListIndex (opt)
   #
@@ -598,7 +603,6 @@ class Matter_IM
   # returns `true` if processed, `false` if silently ignored,
   # or raises an exception
   def process_read_request_pull(msg, val)
-    matter.profiler.log("read_request_start_pull")
     var query = matter.ReadRequestMessage().from_TLV(val)
     var generator_or_arr = self.process_read_or_subscribe_request_pull(query, msg)
     var event_generator_or_arr = self.process_read_or_subscribe_request_event_pull(query, msg)
@@ -763,7 +767,6 @@ class Matter_IM
       ctx.status = matter.UNSUPPORTED_ATTRIBUTE    # new fallback error
       res = pi.read_attribute(msg.session, ctx, self.tlv_solo)
     end
-    matter.profiler.log("read_request_solo read done")
 
     if res != nil
 
@@ -822,8 +825,6 @@ class Matter_IM
     responder.send_response_frame(resp)
 
     # postpone lengthy operations after sending back response
-    matter.profiler.log("RESPONSE SENT")
-
     var attr_name
     if tasmota.loglevel(3)
       attr_name = matter.get_attribute_name(ctx.cluster, ctx.attribute)
@@ -905,7 +906,6 @@ class Matter_IM
     # import debug
     # structure is `ReadRequestMessage` 10.6.2 p.558
     # log("MTR: IM:invoke_request processing start", 4)
-    matter.profiler.log("invoke_request_start")
     var ctx = matter.Path()
     ctx.msg = msg
 
@@ -925,7 +925,6 @@ class Matter_IM
         var cmd_name = matter.get_command_name(ctx.cluster, ctx.command)
         var ctx_str = str(ctx)                    # keep string before invoking, it is modified by response
         var res = self.device.invoke_request(msg.session, q.command_fields, ctx)
-        matter.profiler.log("COMMAND DONE")
         var params_log = (ctx.log != nil) ? "(" + str(ctx.log) + ") " : ""
         log(format("MTR: >Command   (%6i) %s %s %s", msg.session.local_session_id, ctx_str, cmd_name ? cmd_name : "", params_log), 3)
         # log("MTR: Perf/Command = " + str(debug.counters()), 4)
@@ -979,14 +978,12 @@ class Matter_IM
   # or raises an exception
   def process_invoke_request_solo(msg, ctx)
     # import debug
-    matter.profiler.log("invoke_request_solo_start")
     ctx.msg = msg
     ctx.status = matter.UNSUPPORTED_COMMAND   #default error if returned `nil`
 
     var cmd_name = matter.get_command_name(ctx.cluster, ctx.command)
     var ctx_str = str(ctx)                    # keep string before invoking, it is modified by response
     var res = self.device.invoke_request(msg.session, ctx.command_fields, ctx)
-    matter.profiler.log("COMMAND DONE")
     var params_log = (ctx.log != nil) ? "(" + str(ctx.log) + ") " : ""
     if tasmota.loglevel(3)
       log(format("MTR: >Command1  (%6i) %s %s %s", msg.session.local_session_id, ctx_str, cmd_name ? cmd_name : "", params_log), 3)
@@ -1037,7 +1034,6 @@ class Matter_IM
     resp.encode_frame(raw, msg_raw)    # payload in cleartext
     resp.encrypt()
     responder.send_response_frame(resp)
-    matter.profiler.log("RESPONSE SENT")
 
     return true
   end
@@ -1165,11 +1161,11 @@ class Matter_IM
   #############################################################
   # process IM 0x07 Write Response
   #
-  def process_write_response(msg, val)
-    var query = matter.WriteResponseMessage().from_TLV(val)
-    # log("MTR: received WriteResponseMessage=" + str(query), 4)
-    return false
-  end
+  # def process_write_response(msg, val)
+  #   var query = matter.WriteResponseMessage().from_TLV(val)
+  #   # log("MTR: received WriteResponseMessage=" + str(query), 4)
+  #   return false
+  # end
 
   #############################################################
   # process IM 0x09 Invoke Response
@@ -1221,6 +1217,7 @@ class Matter_IM
     var event_generator_or_arr = sub.update_event_generator_array()
 
     var report_data_msg = matter.IM_ReportDataSubscribed_Pull(session._message_handler, session, generator_or_arr, event_generator_or_arr, sub)
+
     self.send_queue.push(report_data_msg)           # push message to queue
     self.send_enqueued(session._message_handler)    # and send queued messages now
   end
