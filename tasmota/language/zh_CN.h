@@ -215,6 +215,7 @@
 #define D_WEB_SERVER "Web服务器"
 #define D_SOC "充电状态"
 #define D_SOH "充电健康"
+#define D_WATER_DEPTH "水深"
 
 // tasmota.ino
 #define D_WARNING_MINIMAL_VERSION "警告：精简固件不支持持久保存设置"
@@ -1059,7 +1060,7 @@
 #define D_UNIT_SECOND "秒"
 #define D_UNIT_SECTORS "扇区"
 #define D_UNIT_VA "VA"
-#define D_UNIT_VAR "VAr"
+#define D_UNIT_VAR "var"
 #define D_UNIT_VOLT "V"
 #define D_UNIT_WATT "W"
 #define D_UNIT_WATTHOUR "Wh"

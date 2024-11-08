@@ -215,6 +215,7 @@
 #define D_WEB_SERVER "Webserver"
 #define D_SOC "Laadtoestand"
 #define D_SOH "Gezondheid"
+#define D_WATER_DEPTH "Diepte van het water"
 
 // tasmota.ino
 #define D_WARNING_MINIMAL_VERSION "WAARSCHUWING Deze versie bewaart geen instellingen"
@@ -1059,7 +1060,7 @@
 #define D_UNIT_SECOND "sec"
 #define D_UNIT_SECTORS "sectoren"
 #define D_UNIT_VA "VA"
-#define D_UNIT_VAR "VAr"
+#define D_UNIT_VAR "var"
 #define D_UNIT_VOLT "V"
 #define D_UNIT_WATT "W"
 #define D_UNIT_WATTHOUR "Wh"
@@ -1081,7 +1082,7 @@
 #define D_IMPORT_REACTIVE "Import blind"
 #define D_EXPORT_REACTIVE "Export blind"
 #define D_TOTAL_REACTIVE  "Totaal blind"
-#define D_UNIT_KWARH      "kVArh"
+#define D_UNIT_KWARH      "kvarh"
 #define D_UNIT_ANGLE      "Deg"
 #define D_TOTAL_ACTIVE    "Totaal werkelijk"
 #define D_RESETTABLE_TOTAL_ACTIVE    "Totaal werkelijk (RST)"

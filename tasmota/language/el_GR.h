@@ -215,6 +215,7 @@
 #define D_WEB_SERVER "Διακομιστής Web"
 #define D_SOC "State of Charge"
 #define D_SOH "State of Health"
+#define D_WATER_DEPTH "Βάθος νερού"
 
 // tasmota.ino
 #define D_WARNING_MINIMAL_VERSION "ΠΡΟΕΙΔΟΠΟΙΗΣΗ Αυτή η έκδοση δεν αποθηκεύει τις ρυθμίσεις"
@@ -1059,7 +1060,7 @@
 #define D_UNIT_SECOND "sec"
 #define D_UNIT_SECTORS "sectors"
 #define D_UNIT_VA "VA"
-#define D_UNIT_VAR "VAr"
+#define D_UNIT_VAR "var"
 #define D_UNIT_VOLT "V"
 #define D_UNIT_WATT "W"
 #define D_UNIT_WATTHOUR "Wh"
@@ -1081,7 +1082,7 @@
 #define D_IMPORT_REACTIVE "Import Reactive"
 #define D_EXPORT_REACTIVE "Export Reactive"
 #define D_TOTAL_REACTIVE  "Total Reactive"
-#define D_UNIT_KWARH      "kVArh"
+#define D_UNIT_KWARH      "kvarh"
 #define D_UNIT_ANGLE      "Deg"
 #define D_TOTAL_ACTIVE    "Total Active"
 #define D_RESETTABLE_TOTAL_ACTIVE    "Total Active (RST)"

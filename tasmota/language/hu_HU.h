@@ -215,6 +215,7 @@
 #define D_WEB_SERVER "Webszerver"
 #define D_SOC "State of Charge"
 #define D_SOH "State of Health"
+#define D_WATER_DEPTH "Vízmélység"
 
 // tasmota.ino
 #define D_WARNING_MINIMAL_VERSION "VIGYÁZZ! Ez a verzió nem támogat tartós beállításokat"
@@ -1062,7 +1063,7 @@
 #define D_UNIT_SECOND "s"
 #define D_UNIT_SECTORS "szektorok"
 #define D_UNIT_VA "VA"
-#define D_UNIT_VAR "VAr"
+#define D_UNIT_VAR "var"
 #define D_UNIT_VOLT "V"
 #define D_UNIT_WATT "W"
 #define D_UNIT_WATTHOUR "Wh"
@@ -1084,7 +1085,7 @@
 #define D_IMPORT_REACTIVE "Bejövő reaktív"
 #define D_EXPORT_REACTIVE "Kimenő reaktív"
 #define D_TOTAL_REACTIVE  "Összes reaktív"
-#define D_UNIT_KWARH      "kVArh"
+#define D_UNIT_KWARH      "kvarh"
 #define D_UNIT_ANGLE      "fok"
 #define D_TOTAL_ACTIVE    "Összes aktív"
 #define D_RESETTABLE_TOTAL_ACTIVE    "Összes aktív (RST)"

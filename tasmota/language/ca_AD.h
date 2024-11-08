@@ -215,6 +215,7 @@
 #define D_WEB_SERVER "Servidor Web"
 #define D_SOC "Estat de canvi"
 #define D_SOH "Estat de salut"
+#define D_WATER_DEPTH "Profunditat de l'aigua"
 
 // tasmota.ino
 #define D_WARNING_MINIMAL_VERSION "Avís : Aquesta versió no suporta configuració persistent"
@@ -1059,7 +1060,7 @@
 #define D_UNIT_SECOND "sec"
 #define D_UNIT_SECTORS "sectors"
 #define D_UNIT_VA "VA"
-#define D_UNIT_VAR "VAr"
+#define D_UNIT_VAR "var"
 #define D_UNIT_VOLT "V"
 #define D_UNIT_WATT "W"
 #define D_UNIT_WATTHOUR "Wh"
@@ -1081,7 +1082,7 @@
 #define D_IMPORT_REACTIVE "Importat Reactiva"
 #define D_EXPORT_REACTIVE "Exportat Reactiva"
 #define D_TOTAL_REACTIVE  "Total Reactiva"
-#define D_UNIT_KWARH      "kVArh"
+#define D_UNIT_KWARH      "kvarh"
 #define D_UNIT_ANGLE      "Graus"
 #define D_TOTAL_ACTIVE    "Total Activa"
 #define D_RESETTABLE_TOTAL_ACTIVE    "Total Activa (RST)"

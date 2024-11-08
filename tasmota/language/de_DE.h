@@ -215,6 +215,7 @@
 #define D_WEB_SERVER "Webserver"
 #define D_SOC "Ladestatus"
 #define D_SOH "Gesundheitsstatus"
+#define D_WATER_DEPTH "Wassertiefe"
 
 // tasmota.ino
 #define D_WARNING_MINIMAL_VERSION "ACHTUNG: Diese Version unterstützt keine persistenten Einstellungen"
@@ -1059,7 +1060,7 @@
 #define D_UNIT_SECOND "s"
 #define D_UNIT_SECTORS "Sektoren"
 #define D_UNIT_VA "VA"
-#define D_UNIT_VAR "VAr"
+#define D_UNIT_VAR "var"
 #define D_UNIT_VOLT "V"
 #define D_UNIT_WATT "W"
 #define D_UNIT_WATTHOUR "Wh"
@@ -1081,7 +1082,7 @@
 #define D_IMPORT_REACTIVE "Importiere Blind"
 #define D_EXPORT_REACTIVE "Exportiere Blind"
 #define D_TOTAL_REACTIVE  "Total Blind"
-#define D_UNIT_KWARH      "kVArh"
+#define D_UNIT_KWARH      "kvarh"
 #define D_UNIT_ANGLE      "Grad"
 #define D_TOTAL_ACTIVE    "Total Wirk"
 #define D_RESETTABLE_TOTAL_ACTIVE    "Total Wirk (RST)"
