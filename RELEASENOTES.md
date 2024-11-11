@@ -114,9 +114,8 @@ The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasm
 
 [Complete list](BUILDS.md) of available feature and sensors.
 
-## Changelog v14.3.0.4
+## Changelog v14.3.0.5
 ### Added
-- Command ``SetOption161 1`` to disable web page slider updates by commands
 - DALI support for short addresses (gear) and groups
 - DALI command `DaliGear` to set max found gear to speed up scan response
 - DALI command `DaliGroup` to add gear to groups
@@ -136,6 +135,7 @@ The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasm
 - Mitsubishi Electric HVAC Compressor Frequency for MiElHVAC [#22347](https://github.com/arendst/Tasmota/issues/22347)
 - Mitsubishi Electric HVAC Auto Clear Remote Temp for MiElHVAC [#22370](https://github.com/arendst/Tasmota/issues/22370)
 - SolaxX1 Meter mode [#22330](https://github.com/arendst/Tasmota/issues/22330)
+- ESP32 MI32 legacy add config operations [#22458](https://github.com/arendst/Tasmota/issues/22458)
 - BLE track devices with RPA [#22300](https://github.com/arendst/Tasmota/issues/22300)
 - Berry add I2C read16/write16 supporting Little Endian [#22448](https://github.com/arendst/Tasmota/issues/22448)
 - Berry drivers for PCA9535 (generic and in SenseCAP D1) [#22451](https://github.com/arendst/Tasmota/issues/22451)
@@ -146,6 +146,7 @@ The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasm
 ### Changed
 - ESP32 Platform from 2024.09.30 to 2024.11.30, Framework (Arduino Core) from v3.1.0.240926 to v3.1.0.241030 and IDF to 5.3.1.241024 [#22384](https://github.com/arendst/Tasmota/issues/22384)
 - ESP32 LVGL library from v9.2.0 to v9.2.2 [#22385](https://github.com/arendst/Tasmota/issues/22385)
+- Redesign GUI adding feedback to buttons, shutters and lights
 - Unit (k)VAr(h) to (k)var(h) [#22435](https://github.com/arendst/Tasmota/issues/22435)
 - AHT1X/AHT2X/AHT3X ready for virtual I2C [#22427](https://github.com/arendst/Tasmota/issues/22427)
 - SGP4X ready for virtual I2C [#22427](https://github.com/arendst/Tasmota/issues/22427)
