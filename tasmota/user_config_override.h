@@ -517,6 +517,9 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_IR_REMOTE_FULL                       // Activate all protocols from IRremoteESP8266 - activating this option will ignore all other USE_IR_REMOTE_* options and set them all to active
 //#undef USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k3 code, 0k3 mem, 48 iram)
 //#undef USE_IR_RECEIVE                           // Support for IR receiver (+7k2 code, 264 iram)
+#define USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k code, 0k3 mem, 48 iram)
+  #define USE_IR_RECEIVE                         // Support for IR receiver (+5k5 code, 264 iram)
+#define USE_RC_SWITCH                            // Add support for RF transceiver using library RcSwitch (+2k7 code, 460 iram)
 #undef USE_AC_ZERO_CROSS_DIMMER
 #undef USE_PWM_DIMMER                           // Add support for MJ-SD01/acenx/NTONPOWER PWM dimmers (+4k5 code)
   #undef USE_PWM_DIMMER_REMOTE                  // Add support for remote switches to PWM Dimmer, also adds device groups support (+0k7 code, also includes device groups)
