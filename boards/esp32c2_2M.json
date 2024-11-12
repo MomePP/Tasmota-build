@@ -7,7 +7,7 @@
       "flash_mode": "qio",
       "mcu": "esp32c2",
       "variant": "esp32c2",
-      "partitions": "partitions/esp32_partition_app1245k_fs64k.csv"
+      "partitions": "partitions/esp32_partition_app1280k_fs64k.csv"
     },
     "connectivity": [
       "wifi",
