@@ -515,29 +515,18 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_SHUTTER
 #undef USE_ARILUX_RF                            // Disable support for Arilux RF remote controller (+0k8 code, 252 iram (non 2.3.0))
 #undef USE_IR_REMOTE_FULL                       // Activate all protocols from IRremoteESP8266 - activating this option will ignore all other USE_IR_REMOTE_* options and set them all to active
-//#undef USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k3 code, 0k3 mem, 48 iram)
-//#undef USE_IR_RECEIVE                           // Support for IR receiver (+7k2 code, 264 iram)
-#define USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k code, 0k3 mem, 48 iram)
-  #define USE_IR_RECEIVE                         // Support for IR receiver (+5k5 code, 264 iram)
-#define USE_RC_SWITCH                            // Add support for RF transceiver using library RcSwitch (+2k7 code, 460 iram)
 #undef USE_AC_ZERO_CROSS_DIMMER
 #undef USE_PWM_DIMMER                           // Add support for MJ-SD01/acenx/NTONPOWER PWM dimmers (+4k5 code)
   #undef USE_PWM_DIMMER_REMOTE                  // Add support for remote switches to PWM Dimmer, also adds device groups support (+0k7 code, also includes device groups)
 #undef USE_DISPLAY_SSD1306
 #undef USE_DISPLAY_ILI9341
-// todo when working -> move out and enable general 
-#define USE_SDCARD
-#define ROTARY_V1
-#define USE_SERIAL_BRIDGE                        // Add support for software Serial Bridge (+2k code)
 #endif
 
 
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 #define USE_ENHANCED_GUI_WIFI_SCAN
 #define USE_INFLUXDB                             // Enable influxdb support (+5k code)
-#define USE_SDCARD
 #define USE_BUZZER                               // Add support for a buzzer (+0k6 code)
-#define ROTARY_V1
 #define USE_LIGHT_PALETTE                        // Add support for color palette (+0k9 code)
 #define USE_LIGHT_ARTNET                         // Add support for DMX/ArtNet via UDP on port 6454 (+3.5k code)
 #define USE_MGS                                  // [I2cDriver17] Enable Xadow and Grove Mutichannel Gas sensor using library Multichannel_Gas_Sensor (+10k code)
@@ -606,13 +595,15 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
   #define TUYA_DIMMER_ID       0                 // Default dimmer Id
 #endif
 
+#endif // CONFIG_IDF_TARGET_ESP32C3
+
 #define USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k code, 0k3 mem, 48 iram)
   #define USE_IR_RECEIVE                         // Support for IR receiver (+5k5 code, 264 iram)
 #define USE_RC_SWITCH                            // Add support for RF transceiver using library RcSwitch (+2k7 code, 460 iram)
+#define USE_SDCARD
+#define ROTARY_V1
 
-#endif // CONFIG_IDF_TARGET_ESP32C3
-
-
+#define USE_SERIAL_BRIDGE                        // Add support for software Serial Bridge (+2k code)
 #undef USE_ARMTRONIX_DIMMERS                    // Disable support for Armtronix Dimmers (+1k4 code)
 //#undef USE_PS_16_DZ                             // Disable support for PS-16-DZ Dimmer (+2k code)
 #undef USE_SONOFF_RF                            // Add support for Sonoff Rf Bridge
