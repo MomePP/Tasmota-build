@@ -775,6 +775,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 
 #ifdef USE_MI_ESP32
 #define USE_BERRY
+#undef USE_BERRY_TCPSERVER
 #define USE_WEBCLIENT
 #define USE_WEBCLIENT_HTTPS
 #define USE_MI_EXT_GUI
