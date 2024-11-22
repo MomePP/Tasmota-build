@@ -179,7 +179,7 @@ void SerialBridgeInput(void) {
   }
 
 #ifdef USE_SERIAL_BRIDGE_TEE
-  if (SB_TEE == Settings->sserial_mode) {                                     // CMND_SSERIALSEND9 - Enable logging tee to serialbridge
+  if (SB_TEE == Settings->sserial_mode) {                                        // CMND_SSERIALSEND9 - Enable logging tee to serialbridge
     return;
   }
 #endif  // USE_SERIAL_BRIDGE_TEE
@@ -226,7 +226,24 @@ void SerialBridgeInput(void) {
       if (9 == SBridge.in_byte_counter) {
         uint32_t *header = (uint32_t*)serial_bridge_buffer;
         if (0x04010155 == *header) {
-          SBridge.temperature = (float)serial_bridge_buffer[6] + ((float)serial_bridge_buffer[7] / 100.0f);
+          /*
+          14:43:26.718 WTS: buf6 0x01, buf7 0x5d, temp 1, dec 93     1.93
+          14:43:33.175 WTS: buf6 0x01, buf7 0x12, temp 1, dec 18     1.18
+          14:43:34.252 WTS: buf6 0x01, buf7 0x06, temp 1, dec 6      1.06
+          14:43:35.328 WTS: buf6 0x00, buf7 0x5d, temp 0, dec 93     0.93
+          14:43:42.862 WTS: buf6 0x00, buf7 0x0c, temp 0, dec 12     0.12
+          14:43:43.938 WTS: buf6 0x00, buf7 0x00, temp 0, dec 0      0.00
+          14:43:45.015 WTS: buf6 0x80, buf7 0x0c, temp 128, dec 12  -0.12
+          14:43:53.624 WTS: buf6 0x80, buf7 0x5d, temp 128, dec 93  -0.93
+          14:43:54.700 WTS: buf6 0x81, buf7 0x06, temp 129, dec 6   -1.06
+          */
+          uint8_t temp = serial_bridge_buffer[6];
+          int sign = 1;
+          if (temp > 127) {
+            temp -= 128;
+            sign = -1;
+          }
+          SBridge.temperature = sign * ((float)temp + ((float)serial_bridge_buffer[7] / 100.0f));
         }
       }
     }
@@ -240,8 +257,12 @@ void SerialBridgeInput(void) {
 
 void SerialBridgeInit(void) {
   if (PinUsed(GPIO_SBR_RX) || PinUsed(GPIO_SBR_TX)) {
-//    SerialBridgeSerial = new TasmotaSerial(Pin(GPIO_SBR_RX), Pin(GPIO_SBR_TX), HARDWARE_FALLBACK);  // Default TM_SERIAL_BUFFER_SIZE (=64) size
-    SerialBridgeSerial = new TasmotaSerial(Pin(GPIO_SBR_RX), Pin(GPIO_SBR_TX), HARDWARE_FALLBACK, 0, MIN_INPUT_BUFFER_SIZE);  // 256
+    SerialBridgeSerial = new TasmotaSerial(Pin(GPIO_SBR_RX),
+                                           Pin(GPIO_SBR_TX),
+                                           HARDWARE_FALLBACK,
+                                           0,                                   // Software receive mode (FALLING edge)
+                                           MIN_INPUT_BUFFER_SIZE,               // 256
+                                           Settings->flag3.sb_receive_invert);  // SetOption69  - (Serial) Invert Serial receive on SerialBridge
     if (SetSSerialBegin()) {
       if (SerialBridgeSerial->hardwareSerial()) {
         ClaimSerial();
@@ -384,6 +405,7 @@ void CmndSSerialMode(void) {
 #ifdef USE_SERIAL_BRIDGE_WTS01
       case SB_WTS01:
         Settings->sserial_mode = XdrvMailbox.payload;
+        Settings->flag3.sb_receive_invert = 0;     // SetOption69  - (Serial) Invert Serial receive on SerialBridge
         Settings->sbaudrate = 9600 / 300;          // 9600bps
         SetSSerialConfig(3);                       // 8N1
         break;

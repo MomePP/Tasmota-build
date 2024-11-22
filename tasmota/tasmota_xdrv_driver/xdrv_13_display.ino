@@ -1443,17 +1443,7 @@ void DisplayDTVarsTeleperiod(void) {
 }
 
 void get_dt_mqtt(void) {
-  static uint8_t xsns_index = 0;
-
-  ResponseClear();
-  uint16_t script_tele_period_save = TasmotaGlobal.tele_period;
-  TasmotaGlobal.tele_period = 2;
-  XsnsNextCall(FUNC_JSON_APPEND, xsns_index);
-  TasmotaGlobal.tele_period = script_tele_period_save;
-  if (ResponseLength()) {
-    ResponseJsonStart();
-    ResponseJsonEnd();
-  }
+  GetNextSensor();
   get_dt_vars(ResponseData());
 }
 
@@ -2179,7 +2169,7 @@ void CmndDisplayText(void) {
 
 void CmndDisplayClear(void) {
   DisplayClear();
-  ResponseCmndChar(XdrvMailbox.data);
+  ResponseCmndDone();
 }
 
 void CmndDisplayNumber(void) {
@@ -2452,6 +2442,28 @@ void Draw_RGB_Bitmap(char *file, uint16_t xp, uint16_t yp, uint8_t scale, bool i
 #ifdef ESP32
 #ifdef JPEG_PICTS
 #define JPG_DEFSIZE 150000
+void Draw_jpeg(uint8_t *mem, uint16_t jpgsize, uint16_t xp, uint16_t yp, uint8_t scale) {
+  if (mem[0] == 0xff && mem[1] == 0xd8) {
+    uint16_t xsize;
+    uint16_t ysize;
+    get_jpeg_size(mem, jpgsize, &xsize, &ysize);
+    //AddLog(LOG_LEVEL_INFO, PSTR("Pict size %d - %d - %d"), xsize, ysize, jpgsize);
+    scale &= 3;
+    uint8_t fac = 1 << scale;
+    xsize /= fac;
+    ysize /= fac;
+    renderer->setAddrWindow(xp, yp, xp + xsize, yp + ysize);
+    uint8_t *rgbmem = (uint8_t *)special_malloc(xsize * ysize * 2);
+    if (rgbmem) {
+      //jpg2rgb565(mem, jpgsize, rgbmem, JPG_SCALE_NONE);
+      jpg2rgb565(mem, jpgsize, rgbmem, (jpg_scale_t)scale);
+      renderer->pushColors((uint16_t*)rgbmem, xsize * ysize, true);
+      free(rgbmem);
+    }
+    renderer->setAddrWindow(0, 0, 0, 0);
+  }
+}
+
 void Draw_JPG_from_URL(char *url, uint16_t xp, uint16_t yp, uint8_t scale) {
   uint8_t *mem = 0;
   WiFiClient http_client;
@@ -2493,28 +2505,6 @@ void Draw_JPG_from_URL(char *url, uint16_t xp, uint16_t yp, uint8_t scale) {
     Draw_jpeg(mem, jpgsize, xp, yp, scale);
   }
   if (mem) free(mem);
-}
-
-void Draw_jpeg(uint8_t *mem, uint16_t jpgsize, uint16_t xp, uint16_t yp, uint8_t scale) {
-  if (mem[0] == 0xff && mem[1] == 0xd8) {
-    uint16_t xsize;
-    uint16_t ysize;
-    get_jpeg_size(mem, jpgsize, &xsize, &ysize);
-    //AddLog(LOG_LEVEL_INFO, PSTR("Pict size %d - %d - %d"), xsize, ysize, jpgsize);
-    scale &= 3;
-    uint8_t fac = 1 << scale;
-    xsize /= fac;
-    ysize /= fac;
-    renderer->setAddrWindow(xp, yp, xp + xsize, yp + ysize);
-    uint8_t *rgbmem = (uint8_t *)special_malloc(xsize * ysize * 2);
-    if (rgbmem) {
-      //jpg2rgb565(mem, jpgsize, rgbmem, JPG_SCALE_NONE);
-      jpg2rgb565(mem, jpgsize, rgbmem, (jpg_scale_t)scale);
-      renderer->pushColors((uint16_t*)rgbmem, xsize * ysize, true);
-      free(rgbmem);
-    }
-    renderer->setAddrWindow(0, 0, 0, 0);
-  }
 }
 #endif // JPEG_PICTS
 #endif // ESP32

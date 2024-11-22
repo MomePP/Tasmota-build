@@ -45,7 +45,7 @@ WiFiClient EspClient;                     // Wifi Client - non-TLS
 #endif  // USE_MQTT_AZURE_IOT
 
 const char kMqttCommands[] PROGMEM = "|"  // No prefix
-#ifndef FIRMWARE_MINIMAL_ONLY
+#ifndef FIRMWARE_MINIMAL
   // SetOption synonyms
   D_SO_MQTTJSONONLY "|"
 #ifdef USE_MQTT_TLS
@@ -67,7 +67,7 @@ const char kMqttCommands[] PROGMEM = "|"  // No prefix
   D_CMND_FULLTOPIC "|" D_CMND_PREFIX "|" D_CMND_GROUPTOPIC "|" D_CMND_TOPIC "|" D_CMND_PUBLISH "|" D_CMND_MQTTLOG "|"
   D_CMND_BUTTONTOPIC "|" D_CMND_SWITCHTOPIC "|" D_CMND_BUTTONRETAIN "|" D_CMND_SWITCHRETAIN "|" D_CMND_POWERRETAIN "|"
   D_CMND_SENSORRETAIN "|" D_CMND_INFORETAIN "|" D_CMND_STATERETAIN "|" D_CMND_STATUSRETAIN
-#endif  // FIRMWARE_MINIMAL_ONLY
+#endif  // FIRMWARE_MINIMAL
   ;
 
 SO_SYNONYMS(kMqttSynonyms,
@@ -79,7 +79,7 @@ SO_SYNONYMS(kMqttSynonyms,
 );
 
 void (* const MqttCommand[])(void) PROGMEM = {
-#ifndef FIRMWARE_MINIMAL_ONLY
+#ifndef FIRMWARE_MINIMAL
 #if defined(USE_MQTT_TLS)
   &CmndMqttFingerprint,
 #endif
@@ -94,7 +94,7 @@ void (* const MqttCommand[])(void) PROGMEM = {
   &CmndFullTopic, &CmndPrefix, &CmndGroupTopic, &CmndTopic, &CmndPublish, &CmndMqttlog,
   &CmndButtonTopic, &CmndSwitchTopic, &CmndButtonRetain, &CmndSwitchRetain, &CmndPowerRetain,
   &CmndSensorRetain, &CmndInfoRetain, &CmndStateRetain, &CmndStatusRetain
-#endif  // FIRMWARE_MINIMAL_ONLY
+#endif  // FIRMWARE_MINIMAL
   };
 
 struct MQTT {
@@ -177,6 +177,19 @@ void MqttDisableLogging(bool state) {
   TasmotaGlobal.masterlog_level = (Mqtt.disable_logging) ? LOG_LEVEL_DEBUG_MORE : LOG_LEVEL_NONE;
 }
 
+// The following emits a warning if the connection is non-TLS on a TLS port
+// this makes troubleshooting easier
+// This function is called only when a non-TLS connection is detected
+void MqttNonTLSWarning(void) {
+#ifndef FIRMWARE_MINIMAL    // not needed in MINIMAL firmware
+  if ((443  == Settings->mqtt_port) ||
+      (8883 == Settings->mqtt_port ) ||
+      (8443 == Settings->mqtt_port)) {
+    AddLog(LOG_LEVEL_INFO, PSTR(D_LOG_MQTT "Warning non-TLS connection on TLS port %d"), Settings->mqtt_port);
+  }
+#endif // FIRMWARE_MINIMAL
+}
+
 /*********************************************************************************************\
  * MQTT driver specific code need to provide the following functions:
  *
@@ -253,9 +266,11 @@ void MqttInit(void) {
     MqttClient.setClient(*tlsClient);
   } else {
     MqttClient.setClient(EspClient);    // non-TLS
+    MqttNonTLSWarning();
   }
 #else // USE_MQTT_TLS
   MqttClient.setClient(EspClient);
+  MqttNonTLSWarning();
 #endif // USE_MQTT_TLS
 
   MqttClient.setKeepAlive(Settings->mqtt_keepalive);
@@ -1152,6 +1167,7 @@ void MqttReconnect(void) {
     tlsClient->setDomainName(SettingsText(SET_MQTT_HOST));   // set domain name for TLS SNI (selection of certificate based on domain name)
   } else {
     MqttClient.setClient(EspClient);
+    MqttNonTLSWarning();
   }
 #ifdef USE_MQTT_AWS_IOT
   // re-assign private keys in case it was updated in between
@@ -1192,6 +1208,7 @@ void MqttReconnect(void) {
   }
 #else   // No USE_MQTT_TLS
   MqttClient.setClient(EspClient);
+  MqttNonTLSWarning();
 #endif  // USE_MQTT_TLS
 
   char stopic[TOPSZ];
@@ -2049,6 +2066,7 @@ void MqttSaveSettings(void) {
 #endif
   ExecuteWebCommand((char*)cmnd.c_str());
 }
+
 #endif  // USE_WEBSERVER
 
 /*********************************************************************************************\
@@ -2072,7 +2090,7 @@ bool Xdrv02(uint32_t function)
       case FUNC_WEB_ADD_HANDLER:
         WebServer_on(PSTR("/" WEB_HANDLE_MQTT), HandleMqttConfiguration);
         break;
-#endif // FIRMWARE_MINIMAL
+#endif  // not FIRMWARE_MINIMAL
 #endif  // USE_WEBSERVER
       case FUNC_COMMAND:
         result = DecodeCommand(kMqttCommands, MqttCommand, kMqttSynonyms);

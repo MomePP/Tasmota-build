@@ -1,7 +1,7 @@
 /*
   xdrv_27_esp32_shutter.ino - Shutter/Blind support for Tasmota
 
-  Copyright (C) 2023  Stefan Bode
+  Copyright (C) 2024  Stefan Bode
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -44,12 +44,6 @@
 // Define Std Text Strings
 #define D_ERROR_FILESYSTEM_NOT_READY "SHT: ERROR File system not enabled"
 #define D_ERROR_FILE_NOT_FOUND "SHT: ERROR File system not ready or file not found"
-
-const char HTTP_MSG_SLIDER_SHUTTER[] PROGMEM =
-  "<tr><td colspan=2>"
-  "<div><span class='p'>%s</span><span class='q'>%s</span></div>"
-  "<div><input type='range' min='0' max='100' value='%d' onchange='lc(\"u\",%d,value)'></div>"
-  "{e}";
 
 const uint16_t SHUTTER_VERSION = 0x0100;  // Latest driver version (See settings deltas below)
 
@@ -195,6 +189,7 @@ struct SHUTTERGLOBAL {
   bool     callibration_run = false;         // if true a callibration is running and additional measures are captured
   uint8_t  stopp_armed = 0;                  // Count each step power usage is below limit of 1 Watt
   uint16_t cycle_time = 0;                   // used for shuttersetup to get accurate timing
+  bool     sensor_data_reported = false;     // ensure that shutter sensor data reported every sedond is only reported if shutter is moving and there is a change.
 } ShutterGlobal;
 
 #define SHT_DIV_ROUND(__A, __B) (((__A) + (__B)/2) / (__B))
@@ -213,14 +208,12 @@ void ShutterAllowPreStartProcedure(uint8_t i) {
   // Prestart allow e.g. to release a LOCK or something else before the movement start
   // Anyway, as long var1 != 99 this is skipped (luckily)
 #ifdef USE_RULES
-  uint32_t uptime_Local = 0;
   AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Delay Start? var%d <99>=<%s>, max10s?"),i + 1, rules_vars[i]);
-  uptime_Local = TasmotaGlobal.uptime;
-  while (uptime_Local + 10 > TasmotaGlobal.uptime 
-          && (String)rules_vars[i] == "99") {
-    loop();
+  // wait for response from rules
+  uint32_t end_time = millis() + 10000;  // 10 seconds
+  while (!TimeReached(end_time) && (String)rules_vars[i] == "99") {
+    delay(1);
   }
-  //AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Delay Start. Done"));
 #endif  // USE_RULES
 }
 
@@ -248,7 +241,7 @@ bool ShutterButtonHandlerMulti(void)
     Button.last_state[button_index], Button.press_counter[button_index], Button.window_timer[button_index], Shutter[shutter_index].button_simu_pressed);
 
   // multipress event handle back to main procedure
-  if (Button.press_counter[button_index]>3) return false;
+  if (Button.press_counter[button_index]>4) return false;
 
   if (!Shutter[shutter_index].button_simu_pressed) {
     uint8_t pos_press_index = Button.press_counter[button_index]-1;
@@ -948,7 +941,7 @@ void ShutterRelayChanged(void)
 
 void ShutterReportPosition(bool always, uint32_t index)
 {
-  Response_P(PSTR("{"));
+  
   uint32_t i = 0;
   uint32_t n = TasmotaGlobal.shutters_present;
   uint8_t shutter_running = 0;
@@ -960,7 +953,7 @@ void ShutterReportPosition(bool always, uint32_t index)
 
   // Allow function exit if nothing to report (99.9% use case)
   if (!always && !shutter_running) return;
-
+  Response_P(PSTR("{"));
   if( index != MAX_SHUTTERS_ESP32) {
     i = index;
     n = index+1;
@@ -978,7 +971,7 @@ void ShutterReportPosition(bool always, uint32_t index)
     uint32_t position = ShutterRealToPercentPosition(Shutter[i].real_position, i);
     uint32_t target   = ShutterRealToPercentPosition(Shutter[i].target_position, i);
     ResponseAppend_P(JSON_SHUTTER_POS, i + 1, (ShutterSettings.shutter_options[i] & 1) ? 100 - position : position, Shutter[i].direction,(ShutterSettings.shutter_options[i] & 1) ? 100 - target : target, Shutter[i].tilt_real_pos );
-   }
+  }
   ResponseJsonEnd();
   if (always || shutter_running) {
     MqttPublishPrefixTopicRulesProcess_P(RESULT_OR_STAT, PSTR(D_PRFX_SHUTTER));  // RulesProcess() now re-entry protected
@@ -1165,14 +1158,6 @@ void ShutterSettingsSave(void) {
   }
 }
 
-void ShutterShow()
-{
-  for (uint32_t i = 0; i < TasmotaGlobal.shutters_present; i++) {
-    WSContentSend_P(HTTP_MSG_SLIDER_SHUTTER,  (ShutterGetOptions(i) & 1) ? D_OPEN : D_CLOSE,(ShutterGetOptions(i) & 1) ? D_CLOSE : D_OPEN, (ShutterGetOptions(i) & 1) ? (100 - ShutterRealToPercentPosition(-9999, i)) : ShutterRealToPercentPosition(-9999, i), i+1);
-    WSContentSeparator(3); // Don't print separator on next WSContentSeparator(1)
-  }
-}
-
 void ShutterStartInit(uint32_t i, int32_t direction, int32_t target_pos)
 {
   //AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: dir %d, delta1 %d, delta2 %d"),direction, (Shutter[i].open_max - Shutter[i].real_position) / Shutter[i].close_velocity, Shutter[i].real_position / Shutter[i].close_velocity);
@@ -1198,6 +1183,7 @@ void ShutterStartInit(uint32_t i, int32_t direction, int32_t target_pos)
     Shutter[i].target_position              = target_pos;
     Shutter[i].start_position               = Shutter[i].real_position;
     TasmotaGlobal.rules_flag.shutter_moving = 1;
+    ShutterGlobal.sensor_data_reported      = false;
     ShutterAllowPreStartProcedure(i);
     Shutter[i].time                         = Shutter[i].last_reported_time = 0;
 
@@ -1358,7 +1344,8 @@ void ShutterUpdatePosition(void)
           // sending MQTT result to broker
           snprintf_P(scommand, sizeof(scommand),PSTR(D_SHUTTER "%d"), i + 1);
           GetTopic_P(stopic, STAT, TasmotaGlobal.mqtt_topic, scommand);
-          Response_P("%d", ShutterSettings.shutter_position[i]);
+          uint32_t position = ShutterRealToPercentPosition(Shutter[i].real_position, i);
+          Response_P("%d", (ShutterSettings.shutter_options[i] & 1) ? 100 - position : position);
           MqttPublish(stopic, Settings->flag.mqtt_power_retain);  // CMND_POWERRETAIN
         }
 
@@ -1385,7 +1372,8 @@ void ShutterUpdateVelocity(uint8_t i)
 
 void ShutterWaitForMotorStart(uint8_t i)
 {
-  while (millis() < Shutter[i].last_stop_time + ShutterSettings.shutter_motorstop) {
+  uint32_t end_time = Shutter[i].last_stop_time + ShutterSettings.shutter_motorstop;
+  while (!TimeReached(end_time)) {
     loop();
   }
   //AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Stoptime done"));
@@ -2291,6 +2279,7 @@ bool Xdrv27(uint32_t function)
   if (Settings->flag3.shutter_mode) {  // SetOption80 - Enable shutter support
     uint8_t  counter         = XdrvMailbox.index == 0 ? 1 : XdrvMailbox.index;
     uint8_t  counterend      = XdrvMailbox.index == 0 ? TasmotaGlobal.shutters_present : XdrvMailbox.index;
+    uint32_t rescue_index    = XdrvMailbox.index;
     int32_t  rescue_payload  = XdrvMailbox.payload;
     uint32_t rescue_data_len = XdrvMailbox.data_len;
     char stemp1[10];
@@ -2321,7 +2310,7 @@ bool Xdrv27(uint32_t function)
           XdrvMailbox.index    = i;
           XdrvMailbox.payload  = rescue_payload;
           XdrvMailbox.data_len = rescue_data_len;
-	  if (!ShutterSettings.version) {
+          if (!ShutterSettings.version) {
             ShutterSettingsLoad(0);
             ShutterSettings.shutter_startrelay[0] = 1;
             ShutterInit();
@@ -2330,16 +2319,24 @@ bool Xdrv27(uint32_t function)
         }
         break;
       case FUNC_JSON_APPEND:
-        for (uint8_t i = 0; i < TasmotaGlobal.shutters_present; i++) {
-          ResponseAppend_P(",");
-          uint8_t position = ShutterRealToPercentPosition(Shutter[i].real_position, i);
-          uint8_t target   = ShutterRealToPercentPosition(Shutter[i].target_position, i);
-          ResponseAppend_P(JSON_SHUTTER_POS, i + 1, (ShutterSettings.shutter_options[i] & 1) ? 100 - position : position, Shutter[i].direction,(ShutterSettings.shutter_options[i] & 1) ? 100 - target : target, Shutter[i].tilt_real_pos );
-#ifdef USE_DOMOTICZ
-          if ((0 == TasmotaGlobal.tele_period) && (0 == i)) {
-             DomoticzSensor(DZ_SHUTTER, ShutterRealToPercentPosition(Shutter[i].real_position, i));
+        if (!ShutterGlobal.sensor_data_reported) {
+          ShutterGlobal.sensor_data_reported = true;
+          for (uint8_t i = 0; i < TasmotaGlobal.shutters_present; i++) {
+            ResponseAppend_P(",");
+            uint8_t position = ShutterRealToPercentPosition(Shutter[i].real_position, i);
+            position = (ShutterSettings.shutter_options[i] & 1) ? 100 - position : position;
+            uint8_t target   = ShutterRealToPercentPosition(Shutter[i].target_position, i);
+            target = (ShutterSettings.shutter_options[i] & 1) ? 100 - target : target;
+            ResponseAppend_P(JSON_SHUTTER_POS, i + 1,  position, Shutter[i].direction, target, Shutter[i].tilt_real_pos );
+            if (Shutter[i].direction != 0) {
+              ShutterGlobal.sensor_data_reported = false;
+            }
+  #ifdef USE_DOMOTICZ
+            if ((0 == TasmotaGlobal.tele_period) && (0 == i)) {
+              DomoticzSensor(DZ_SHUTTER, position);
+            }
+  #endif  // USE_DOMOTICZ
           }
-#endif  // USE_DOMOTICZ
         }
         break;
       case FUNC_SET_POWER:
@@ -2383,15 +2380,13 @@ bool Xdrv27(uint32_t function)
           result = false;
         }
       break;
-#ifdef USE_WEBSERVER
-      case FUNC_WEB_SENSOR:
-        ShutterShow();
-        break;
-#endif  // USE_WEBSERVER
       case FUNC_ACTIVE:
         result = true;
         break;
     }
+    XdrvMailbox.index = rescue_index;
+    XdrvMailbox.payload = rescue_payload;
+    XdrvMailbox.data_len = rescue_data_len;
   }
   return result;
 }
