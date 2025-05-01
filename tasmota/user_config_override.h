@@ -3,6 +3,8 @@
 
 #ifdef ESP32
 #include "sdkconfig.h"
+#undef USE_BERRY_LEDS_PANEL                 // Remove button to dynamically load the Leds Panel from a bec file online
+#undef USE_BERRY_LVGL_PANEL                 // Remove button to dynamically load the LVGL Panel from a bec file online
 #endif
 
 #undef OTA_URL
@@ -760,6 +762,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 
 //#undef USE_WEBSERVER
 #undef USE_BERRY
+#undef USE_WEBCLIENT_HTTPS
 #undef USE_MATTER_DEVICE
 
 #undef USE_HOME_ASSISTANT

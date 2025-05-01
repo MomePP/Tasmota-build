@@ -131,6 +131,7 @@
 #define D_JSON_MODEL "Model"
 #define D_JSON_MOISTURE "Moisture"
 #define D_JSON_MQTT_COUNT "MqttCount"
+#define D_JSON_MQTT_TLS "MqttTLS"
 #define D_JSON_NULL "null"
 #define D_JSON_NO "No"
 #define D_JSON_NOISE "Noise"
@@ -215,6 +216,7 @@
 #define D_JSON_UV_INDEX_TEXT "UvIndexText"
 #define D_JSON_UV_LEVEL "UvLevel"
 #define D_JSON_UV_POWER "UvPower"
+#define D_JSON_VALID "Valid"
 #define D_JSON_VCC "Vcc"
 #define D_JSON_VERSION "Version"
 #define D_JSON_VOLTAGE "Voltage"
@@ -270,6 +272,7 @@
 // Commands tasmota.ino
 #define D_CMND_BACKLOG "Backlog"
 #define D_CMND_JSON "Json"
+#define D_CMND_JSON_PP "JsonPP"
 #define D_CMND_DELAY "Delay"
 #define D_CMND_NODELAY "NoDelay"
 #define D_CMND_STATUS "Status"
@@ -331,6 +334,7 @@
 #define D_CMND_OTAURL "OtaUrl"
 #define D_CMND_SERIALLOG "SerialLog"
 #define D_CMND_SYSLOG "SysLog"
+#define D_CMND_FILELOG "FileLog"
 #define D_CMND_LOGHOST "LogHost"
 #define D_CMND_LOGPORT "LogPort"
 #define D_CMND_IPADDRESS "IPAddress"
@@ -530,6 +534,7 @@
 #define D_CMND_PALETTE "Palette"
 #define D_CMND_PIXELS "Pixels"
 #define D_CMND_STEPPIXELS "StepPixels"
+#define D_CMND_PIXELTYPE "PixelType"
 #define D_CMND_ARTNET "ArtNet"
 #define D_CMND_ARTNET_CONFIG "ArtNetConfig"
 #define D_SO_ARTNET_AUTORUN "ArtNetAutorun"
@@ -854,18 +859,21 @@
 // Log message prefix
 #define D_LOG_APPLICATION "APP: "  // Application
 #define D_LOG_BRIDGE "BRG: "       // Bridge
+#define D_LOG_BERRY "BRY: "        // Berry scripting language
 #define D_LOG_CONFIG "CFG: "       // Settings
 #define D_LOG_COMMAND "CMD: "      // Command
 #define D_LOG_DEBUG "DBG: "        // Debug
 #define D_LOG_DHT "DHT: "          // DHT sensor
 #define D_LOG_DOMOTICZ "DOM: "     // Domoticz
 #define D_LOG_DSB "DSB: "          // DS18xB20 sensor
+#define D_LOG_ETH "ETH: "          // Ethernet
 #define D_LOG_HTTP "HTP: "         // HTTP webserver
-#define D_LOG_HRE "HRE: "
+#define D_LOG_HRE "HRE: "          // Badger HR-E Water Meter
 #define D_LOG_I2C "I2C: "          // I2C
 #define D_LOG_IRR "IRR: "          // Infra Red Received
-#define D_LOG_KNX "KNX: "
+#define D_LOG_KNX "KNX: "          // KNX server
 #define D_LOG_LOG "LOG: "          // Logging
+#define D_LOG_LVGL "LVG: "         // LVGL graphics engine
 #define D_LOG_MODULE "MOD: "       // Module
 #define D_LOG_MDNS "mDN: "         // mDNS
 #define D_LOG_MQTT "MQT: "         // MQTT
@@ -873,17 +881,17 @@
 #define D_LOG_RESULT "RSL: "       // Result
 #define D_LOG_RFR "RFR: "          // RF Received
 #define D_LOG_SERIAL "SER: "       // Serial
+#define D_LOG_SENSEAIR "SNA: "     // Senseair driver
+#define D_LOG_SENSOR "SNS: "       // Sensor driver
 #define D_LOG_SHT1 "SHT: "         // SHT1x sensor
+#define D_LOG_TCP "TCP: "          // TCP bridge
+#define D_LOG_TELNET "TEL: "       // Telnet server
+#define D_LOG_THERMOSTAT "THE: "   // Thermostat driver
+#define D_LOG_UFS "UFS: "          // File system
 #define D_LOG_UPLOAD "UPL: "       // Upload
 #define D_LOG_UPNP "UPP: "         // UPnP
 #define D_LOG_WIFI "WIF: "         // Wifi
-#define D_LOG_ETH "ETH: "          // Ethernet
 #define D_LOG_ZIGBEE "ZIG: "       // Zigbee
-#define D_LOG_TCP "TCP: "          // TCP bridge
-#define D_LOG_BERRY "BRY: "        // Berry scripting language
-#define D_LOG_LVGL "LVG: "         // LVGL graphics engine
-#define D_LOG_THERMOSTAT "THE: "   // Thermostat driver
-#define D_LOG_SENSOR "SNS: "       // Sensor driver
 
 /********************************************************************************************/
 
@@ -968,8 +976,8 @@ const char HTTP_SNS_F_VOLTAGE[]     PROGMEM = "{s}%s "  D_VOLTAGE             "{
 const char HTTP_SNS_F_CURRENT[]     PROGMEM = "{s}%s "  D_CURRENT             "{m}%*_f " D_UNIT_AMPERE            "{e}";
 const char HTTP_SNS_F_CURRENT_MA[]  PROGMEM = "{s}%s "  D_CURRENT             "{m}%*_f " D_UNIT_MILLIAMPERE       "{e}";
 const char HTTP_SNS_F_DISTANCE_CM[] PROGMEM = "{s}%s "  D_DISTANCE            "{m}%1_f " D_UNIT_CENTIMETER        "{e}";
-const char HTTP_SNS_F_NOX[]         PROGMEM = "{s}%s "  D_NOX                 "{m}%*_f "                          "{e}";
-const char HTTP_SNS_F_VOC[]         PROGMEM = "{s}%s "  D_VOC                 "{m}%*_f "                          "{e}";
+const char HTTP_SNS_F_NOX[]         PROGMEM = "{s}%s "  D_NOX                 "{m}%*_f"                           "{e}";
+const char HTTP_SNS_F_VOC[]         PROGMEM = "{s}%s "  D_VOC                 "{m}%*_f"                           "{e}";
 const char HTTP_SNS_F_ABS_HUM[]     PROGMEM = "{s}%s "  D_ABSOLUTE_HUMIDITY   "{m}%*_f " D_UNIT_GRAM_PER_CUBIC_METER "{e}";
 
 const char HTTP_SNS_HUM[]           PROGMEM = "{s}%s "  D_HUMIDITY            "{m}%s " D_UNIT_PERCENT             "{e}";
@@ -987,17 +995,17 @@ const char HTTP_SNS_MOISTURE[]      PROGMEM = "{s}%s "  D_MOISTURE            "{
 const char HTTP_SNS_RANGE_CHR[]     PROGMEM = "{s}%s "  D_RANGE               "{m}%s"                             "{e}";
 const char HTTP_SNS_RANGE[]         PROGMEM = "{s}%s "  D_RANGE               "{m}%d"                             "{e}";
 const char HTTP_SNS_HALL_EFFECT[]   PROGMEM = "{s}%s "  D_HALL_EFFECT         "{m}%d"                             "{e}";
-const char HTTP_SNS_PH[]            PROGMEM = "{s}%s "  D_PH                  "{m}%s "                            "{e}";
-const char HTTP_SNS_MQ[]            PROGMEM = "{s}"     D_MQ"-%s"             "{m}%s " D_UNIT_PARTS_PER_MILLION   "{e}";
+const char HTTP_SNS_PH[]            PROGMEM = "{s}%s "  D_PH                  "{m}%s"                             "{e}";
+const char HTTP_SNS_MQ[]            PROGMEM = "{s}"     D_MQ "-%s"            "{m}%s " D_UNIT_PARTS_PER_MILLION   "{e}";
 const char HTTP_SNS_ORP[]           PROGMEM = "{s}%s "  D_ORP                 "{m}%s " D_UNIT_MILLIVOLT           "{e}";
 const char HTTP_SNS_EC[]            PROGMEM = "{s}%s "  D_EC                  "{m}%s " D_UNIT_MICROSIEMENS_PER_CM "{e}";
 const char HTTP_SNS_O2[]            PROGMEM = "{s}%s "  D_O2                  "{m}%s " D_UNIT_PERCENT             "{e}";
 const char HTTP_SNS_LITERS[]        PROGMEM = "{s}%s "  D_VOLUME              "{m}%s " D_UNIT_LITERS              "{e}";
 const char HTTP_SNS_LPM[]           PROGMEM = "{s}%s "  D_FLOW_RATE           "{m}%s " D_UNIT_LITERS_PER_MIN      "{e}";
 const char HTTP_SNS_DO[]            PROGMEM = "{s}%s "  D_DO                  "{m}%s " D_UNIT_MILIGRAMS_PER_LITER "{e}";
-const char HTTP_SNS_COLOR_RED[]     PROGMEM = "{s}%s "  D_COLOR_RED           "{m}%u "                            "{e}";
-const char HTTP_SNS_COLOR_GREEN[]   PROGMEM = "{s}%s "  D_COLOR_GREEN         "{m}%u "                            "{e}";
-const char HTTP_SNS_COLOR_BLUE[]    PROGMEM = "{s}%s "  D_COLOR_BLUE          "{m}%u "                            "{e}";
+const char HTTP_SNS_COLOR_RED[]     PROGMEM = "{s}%s "  D_COLOR_RED           "{m}%u"                             "{e}";
+const char HTTP_SNS_COLOR_GREEN[]   PROGMEM = "{s}%s "  D_COLOR_GREEN         "{m}%u"                             "{e}";
+const char HTTP_SNS_COLOR_BLUE[]    PROGMEM = "{s}%s "  D_COLOR_BLUE          "{m}%u"                             "{e}";
 const char HTTP_SNS_MILLILITERS[]   PROGMEM = "{s}%s "  D_VOLUME              "{m}%s " D_UNIT_MILLILITERS         "{e}";
 const char HTTP_SNS_GAS[]           PROGMEM = "{s}%s "  D_GAS                 "{m}%d " D_UNIT_PERCENT          "LEL{e}";
 const char HTTP_SNS_SOC[]           PROGMEM = "{s}%s "  D_SOC                 "{m}%d " D_UNIT_PERCENT             "{e}";
@@ -1022,7 +1030,7 @@ const char HTTP_SNS_MAX_POWER[]           PROGMEM = "{s}" D_MAX_POWER           
 const char HTTP_SNS_POWER_TOTAL[]         PROGMEM = "{s}" D_POWERUSAGE_ACTIVE_TOTAL "{m}%s " D_UNIT_WATT          "{e}";
 const char HTTP_SNS_POWERUSAGE_APPARENT[] PROGMEM = "{s}" D_POWERUSAGE_APPARENT     "{m}%s " D_UNIT_VA            "{e}";
 const char HTTP_SNS_POWERUSAGE_REACTIVE[] PROGMEM = "{s}" D_POWERUSAGE_REACTIVE     "{m}%s " D_UNIT_VAR           "{e}";
-const char HTTP_SNS_POWER_FACTOR[]        PROGMEM = "{s}" D_POWER_FACTOR            "{m}%s                         {e}";
+const char HTTP_SNS_POWER_FACTOR[]        PROGMEM = "{s}" D_POWER_FACTOR            "{m}%s"                       "{e}";
 const char HTTP_SNS_ENERGY_TODAY[]        PROGMEM = "{s}" D_ENERGY_TODAY            "{m}%s " D_UNIT_KILOWATTHOUR  "{e}";
 const char HTTP_SNS_ENERGY_YESTERDAY[]    PROGMEM = "{s}" D_ENERGY_YESTERDAY        "{m}%s " D_UNIT_KILOWATTHOUR  "{e}";
 const char HTTP_SNS_ENERGY_TOTAL[]        PROGMEM = "{s}" D_ENERGY_TOTAL            "{m}%s " D_UNIT_KILOWATTHOUR  "{e}";
@@ -1033,6 +1041,8 @@ const char HTTP_SNS_IMPORT_REACTIVE[]     PROGMEM = "{s}" D_IMPORT_REACTIVE     
 const char HTTP_SNS_EXPORT_REACTIVE[]     PROGMEM = "{s}" D_EXPORT_REACTIVE         "{m}%s " D_UNIT_KWARH         "{e}";
 const char HTTP_SNS_TOTAL_REACTIVE[]      PROGMEM = "{s}" D_TOTAL_REACTIVE          "{m}%s " D_UNIT_KWARH         "{e}";
 const char HTTP_SNS_PHASE_ANGLE[]         PROGMEM = "{s}" D_PHASE_ANGLE             "{m}%s " D_UNIT_ANGLE         "{e}";
+const char HTTP_SNS_ADDRESS[]             PROGMEM = "{s}" D_ADDRESS                 "{m}%s"                       "{e}";
+
 #endif  // USE_WEBSERVER
 
 #endif  // _I18N_H_
