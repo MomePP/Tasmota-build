@@ -231,8 +231,8 @@ const char HTTP_SCRIPT_INFO_END[] PROGMEM =
   #include "./html_uncompressed/HTTP_HEAD_STYLE_WIFI.h"
 #endif
 
-#ifdef USE_ZIGBEE
-// Styles used for Zigbee Web UI
+#if defined(USE_ZIGBEE) || defined(USE_LORAWAN_BRIDGE)
+// Styles used for Zigbee and LoRaWan Web UI
 // Battery icon from https://css.gg/battery
 //
   #ifdef USE_UNISHOX_COMPRESSION
@@ -646,6 +646,13 @@ void WebServer_on(const char * prefix, void (*func)(void), uint8_t method = HTTP
 #endif  // ESP32
 }
 
+#ifdef ESP32
+void WebServer_removeRoute(const char * prefix, uint8_t method = HTTP_ANY) {
+  if (Webserver == nullptr) { return; }
+  Webserver->removeRoute(prefix, (HTTPMethod) method);
+}
+#endif  // ESP32
+
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
 
 // Always listens to all interfaces, so we don't need an IP address anymore
@@ -990,7 +997,7 @@ void WSContentSendStyle_P(const char* formatP, ...) {
 #ifdef USE_WEB_STATUS_LINE_WIFI
   WSContentSend_P(HTTP_HEAD_STYLE_WIFI, WebColor(COL_FORM), WebColor(COL_TITLE));
 #endif
-#ifdef USE_ZIGBEE
+#if defined(USE_ZIGBEE) || defined(USE_LORAWAN_BRIDGE)
   WSContentSend_P(HTTP_HEAD_STYLE_ZIGBEE);
 #endif // USE_ZIGBEE
   if (formatP != nullptr) {
@@ -1125,8 +1132,8 @@ void WSContentSend_Voltage(const char *types, float f_voltage) {
 
 /*-------------------------------------------------------------------------------------------*/
 
-void WSContentSend_CurrentMA(const char *types, float f_current) {
-  WSContentSend_PD(HTTP_SNS_F_CURRENT_MA, types, Settings->flag2.current_resolution, &f_current);
+void WSContentSend_Current(const char *types, float f_current) {
+  WSContentSend_PD(HTTP_SNS_F_CURRENT, types, Settings->flag2.current_resolution, &f_current);
 }
 
 /*-------------------------------------------------------------------------------------------*/
@@ -1924,7 +1931,8 @@ bool HandleRootStatusRefresh(void) {
 #ifdef USE_WEB_STATUS_LINE_WIFI
   if (Settings->flag4.network_wifi) {
     int32_t rssi = WiFi.RSSI();
-    WSContentSend_P(PSTR("<div class='wifi' title='" D_RSSI " %d%%, %d dBm' style='padding:0 2px 0 2px;'><div class='arc a3 %s'></div><div class='arc a2 %s'></div><div class='arc a1 %s'></div><div class='arc a0 active'></div></div>"),
+    WSContentSend_P(PSTR("<div class='wifi' title='%s: " D_RSSI " %d%%, %d dBm' style='padding:0 2px 0 2px;'><div class='arc a3 %s'></div><div class='arc a2 %s'></div><div class='arc a1 %s'></div><div class='arc a0 active'></div></div>"),
+                          SettingsTextEscaped(SET_STASSID1 + Settings->sta_active).c_str(),                      
                           WifiGetRssiAsQuality(rssi), rssi,
                           rssi >= -55 ? "active" : "",
                           rssi >= -70 ? "active" : "",
