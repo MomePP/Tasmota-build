@@ -1328,7 +1328,6 @@ dBBBBBP     dBP     dBBBBb    dBBBBb     dBBBP      dBBBP     dBBBBb   dBBBBBb  
   #define OTA_URL "https://github.com/tasmota/install/raw/main/firmware/unofficial/tasmota32-zigbeebridge.bin"
   #define USE_TLS
   #define USE_BERRY
-  #define USE_BERRY_PSRAM
   #define USE_WEBCLIENT
   #define USE_WEBCLIENT_HTTPS
 #endif  // ESP32
