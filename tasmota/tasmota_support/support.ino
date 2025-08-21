@@ -1714,7 +1714,7 @@ void TemplateGpios(myio *gp)
     j++;
 #endif  // ESP8266
 #ifdef ESP32
-#if CONFIG_IDF_TARGET_ESP32C2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32P4
+#if CONFIG_IDF_TARGET_ESP32C2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32P4
     dest[i] = src[i];
 #elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3
     if (22 == i) { j = 33; }    // skip 22-32
@@ -2207,7 +2207,7 @@ void SetSerial(uint32_t baudrate, uint32_t serial_config) {
 
 void ClaimSerial(void) {
 #ifdef ESP32
-#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3
+#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3
 #ifdef USE_USB_CDC_CONSOLE
   if (!tasconsole_serial) {
     return;              // USB console does not use serial
@@ -2553,14 +2553,6 @@ void SyslogAsync(bool refresh) {
       } else {
         strcpy(msgid, "-");                                   // -
       }
-/*
-      char msgid[2] = { 0 };
-      char* line_msgid = strchr(msg_start, ':');
-      if ((line_msgid == nullptr) || (line_msgid - msg_start != 3)) {  // Only 3 character message id supported
-        strcpy(msgid, "-");                                   // -
-      }
-*/
-/*
       snprintf_P(header, sizeof(header), PSTR("<%d>1 %s%s000%s %s tasmota - %s -"),
         128 + min(loglevel * 3, 7),                           // Error (1) = 131, Info (2) = 134, Debug (3) = 135, DebugMore = (4) 135
         GetDate().c_str(), timestamp, GetTimeZone().c_str(),  // 1970-01-01T00:00:02.096000+01:00
