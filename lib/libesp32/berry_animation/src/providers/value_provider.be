@@ -32,14 +32,16 @@ class ValueProvider : animation.parameterized_object
   # special value providers that return coordinated distinct
   # values for different parameter names.
   #
+  # For value providers, start is typically not called because instances
+  # can be embedded in closures. So value providers must consider the first
+  # call to `produce_value()` as a start of their internal time reference.
+  #
   # @param name: string - Parameter name being requested
   # @param time_ms: int - Current time in milliseconds
   # @return any - Value appropriate for the parameter type
   def produce_value(name, time_ms)
     return module("undefined")  # Default behavior - return undefined
   end
-  
-
 end
 
 # Add a method to check if an object is a value provider

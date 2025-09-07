@@ -43,10 +43,8 @@ class MyAnimation : animation.animation
       return false
     end
     
-    # Use engine time if not provided
-    if time_ms == nil
-      time_ms = self.engine.time_ms
-    end
+    # Auto-fix time_ms and start_time
+    time_ms = self._fix_time_ms(time_ms)
     
     # Use virtual parameter access - automatically resolves ValueProviders
     var param1 = self.my_param1
@@ -99,6 +97,7 @@ static var PARAMS = {
 - **`"int"`** - Integer values (default if not specified)
 - **`"string"`** - String values
 - **`"bool"`** - Boolean values (true/false)
+- **`"bytes"`** - Bytes objects (validated using isinstance())
 - **`"instance"`** - Object instances
 - **`"any"`** - Any type (no type validation)
 
@@ -275,6 +274,9 @@ def render(frame, time_ms)
   if !self.is_running || frame == nil
     return false
   end
+
+  # Auto-fix time_ms and start_time
+  time_ms = self._fix_time_ms(time_ms)
   
   # Get frame dimensions
   var width = frame.width
@@ -290,7 +292,7 @@ def render(frame, time_ms)
     frame.set_pixel_color(i, pixel_color)
   end
   
-  # Apply opacity if not full
+  # Apply opacity if not full (supports numbers, animations)
   if opacity < 255
     frame.apply_opacity(opacity)
   end
@@ -331,12 +333,12 @@ for i: 0..(frame.width-1)
 end
 ```
 
-## Complete Example: PulsePositionAnimation
+## Complete Example: BeaconAnimation
 
 Here's a complete example showing all concepts:
 
 ```berry
-#@ solidify:PulsePositionAnimation,weak
+#@ solidify:BeaconAnimation,weak
 class BeaconAnimation : animation.animation
   # NO instance variables for parameters - they are handled by the virtual parameter system
   
@@ -371,7 +373,9 @@ class BeaconAnimation : animation.animation
       return false
     end
     
-    # Use engine time if not provided
+    # Auto-fix time_ms and start_time
+    time_ms = self._fix_time_ms(time_ms)
+
     if time_ms == nil
       time_ms = self.engine.time_ms
     end
@@ -466,12 +470,12 @@ class BeaconAnimation : animation.animation
   
   # String representation of the animation
   def tostring()
-    return f"PulsePositionAnimation(color=0x{self.color :08x}, pos={self.pos}, beacon_size={self.beacon_size}, slew_size={self.slew_size})"
+    return f"BeaconAnimation(color=0x{self.color :08x}, pos={self.pos}, beacon_size={self.beacon_size}, slew_size={self.slew_size})"
   end
 end
 
 # Export class directly - no redundant factory function needed
-return {'beacon_animation': PulsePositionAnimation}
+return {'beacon_animation': BeaconAnimation}
 ```
 
 ## Testing Your Animation
@@ -536,8 +540,8 @@ anim.color = 0xFFFF0000
 anim.pos = 5
 anim.beacon_size = 3
 
-engine.add_animation(anim)
-engine.start()
+engine.add(anim)  # Unified method for animations and sequence managers
+engine.run()
 
 # Let it run for a few seconds
 tasmota.delay(3000)

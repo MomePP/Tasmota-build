@@ -11,9 +11,12 @@
 class ParameterizedObject
   var values          # Map storing all parameter values
   var engine          # Reference to the animation engine
+  var start_time      # Time when object started (ms) (int), value is set at first call to update() or render()
   
   # Static parameter definitions - should be overridden by subclasses
-  static var PARAMS = {}
+  static var PARAMS = {
+    "is_running": {"type": "bool", "default": false}   # Whether the object is active
+  }
   
   # Initialize parameter system
   #
@@ -227,6 +230,13 @@ class ParameterizedObject
         import math
         value = int(math.round(value))
         actual_type = "int"
+      # Special case: check for bytes type using isinstance()
+      elif expected_type == "bytes"
+        if actual_type == "instance" && isinstance(value, bytes)
+          actual_type = "bytes"
+        elif actual_type != "instance" || !isinstance(value, bytes)
+          raise "value_error", f"Parameter '{name}' expects type '{expected_type}' but got '{actual_type}' (value: {value})"
+        end
       elif expected_type != actual_type
         raise "value_error", f"Parameter '{name}' expects type '{expected_type}' but got '{actual_type}' (value: {value})"
       end
@@ -331,34 +341,6 @@ class ParameterizedObject
     return self._get_param_def(name)
   end
   
-  # Get all parameter metadata from class hierarchy
-  #
-  # @return map - Map of all parameter metadata
-  def get_params_metadata()
-    import introspect
-    var all_params = {}
-    
-    # Walk up the class hierarchy to collect all parameter definitions
-    var current_class = classof(self)
-    while current_class != nil
-      # Check if this class has PARAMS
-      if introspect.contains(current_class, "PARAMS")
-        var class_params = current_class.PARAMS
-        # Add parameters from this class (child class parameters override parent)
-        for param_name : class_params.keys()
-          if !all_params.contains(param_name)  # Don't override child class params
-            all_params[param_name] = class_params[param_name]
-          end
-        end
-      end
-      
-      # Move to parent class
-      current_class = super(current_class)
-    end
-    
-    return all_params
-  end
-  
   # Helper method to get a resolved value from either a static value or a value provider
   # This is the same as accessing obj.param_name but with explicit time
   #
@@ -369,10 +351,47 @@ class ParameterizedObject
     return self._resolve_parameter_value(param_name, time_ms)
   end
   
-  # Start the object - placeholder for future implementation
+  # Helper function to make sure both self.start_time and time_ms are valid
   #
+  # If time_ms is nil, replace with time_ms from engine
+  # Then initialize the value for self.start_time if not set already
+  #
+  # @param time_ms: int or nil - Current time in milliseconds
+  # @return time_ms: int (guaranteed)
+  def _fix_time_ms(time_ms)
+    if time_ms == nil
+      time_ms = self.engine.time_ms
+    end
+    if time_ms == nil
+      raise "value_error", "engine.time_ms should not be 'nil'"
+    end
+    if self.start_time == nil
+      self.start_time = time_ms
+    end
+    return time_ms
+  end
+
+  # Start the object - base implementation
+  #
+  # `start(time_ms)` is called whenever an animation is about to be run
+  # by the animation engine directly or via a sequence manager.
+  # For value providers, start is typically not called because instances
+  # can be embedded in closures. So value providers must consider the first
+  # call to `produce_value()` as a start of their internal time reference.
+  # @param start_time: int - Optional start time in milliseconds
   # @return self for method chaining
   def start(time_ms)
+    if time_ms == nil
+      time_ms = self.engine.time_ms
+    end
+    if time_ms == nil
+      raise "value_error", "engine.time_ms should not be 'nil'"
+    end
+    if self.start_time != nil   # reset time only if it was already started
+      self.start_time = time_ms
+    end
+    # Set is_running directly in values map to avoid infinite loop
+    self.values["is_running"] = true
     return self
   end
   
@@ -382,7 +401,16 @@ class ParameterizedObject
   # @param name: string - Parameter name
   # @param value: any - New parameter value
   def on_param_changed(name, value)
-    # Default implementation does nothing
+    if name == "is_running"
+      if value == true
+        # Start the object (but avoid infinite loop by not setting is_running again)
+        # Call start method to handle start_time
+        self.start(nil)
+      elif value == false
+        # Stop the object - just set the internal state
+        # (is_running is already set to false by the parameter system)
+      end
+    end
   end
   
   # Equality operator for object identity comparison

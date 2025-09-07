@@ -13,7 +13,7 @@
 #   import animation
 #   var engine = animation.create_engine(strip)
 #   var pulse_anim = animation.pulse(animation.solid(0xFF0000), 2000, 50, 255)
-#   engine.add_animation(pulse_anim).start()
+#   engine.add(pulse_anim).start()
 #
 # Launch standalone with: "./berry -s -g -m lib/libesp32/berry_animation"
 
@@ -57,6 +57,10 @@ end
 # Import core framework components
 # These provide the fundamental architecture for the animation system
 
+# Mathematical functions for use in closures and throughout the framework
+import "core/math_functions" as math_functions
+register_to_animation(math_functions)
+
 # Base class for parameter management - shared by Animation and ValueProvider
 import "core/parameterized_object" as parameterized_object
 register_to_animation(parameterized_object)
@@ -73,7 +77,7 @@ register_to_animation(animation_base)
 import "core/sequence_manager" as sequence_manager
 register_to_animation(sequence_manager)
 
-# Unified animation engine - central controller for all animations
+# Unified animation engine - central engine for all animations
 # Provides priority-based layering, automatic blending, and performance optimization
 import "core/animation_engine" as animation_engine
 register_to_animation(animation_engine)
@@ -87,12 +91,12 @@ import "core/user_functions" as user_functions
 register_to_animation(user_functions)
 
 # Import and register actual user functions
-try
-  import "user_functions" as user_funcs  # This registers the actual user functions
-except .. as e, msg
-  # User functions are optional - continue without them if not available
-  print(f"Note: User functions not loaded: {msg}")
-end
+# try
+#   import "user_functions" as user_funcs  # This registers the actual user functions
+# except .. as e, msg
+#   # User functions are optional - continue without them if not available
+#   print(f"Note: User functions not loaded: {msg}")
+# end
 
 # Import value providers
 import "providers/value_provider.be" as value_provider
@@ -201,28 +205,6 @@ def animation_init_strip(*l)
 end
 animation.init_strip = animation_init_strip
 
-# Global variable resolver with error checking
-# Used by DSL-generated code to resolve variable names during execution
-# First checks animation module, then global scope for user-defined variables
-def animation_global(name, module_name)
-  import global
-  import introspect
-  import animation
-  
-  # First try to find in animation module (built-in functions/classes)
-  if (module_name != nil) && introspect.contains(animation, module_name)
-    return animation.(module_name)
-  end
-  
-  # Then try global scope (user-defined variables)
-  if global.contains(name)
-    return global.(name)
-  else
-    raise "syntax_error", f"'{name}' undeclared"
-  end
-end
-animation.global = animation_global
-
 # This function is called from C++ code to set up the Berry animation environment
 # It creates a mutable 'animation' module on top of the immutable solidified
 #
@@ -249,6 +231,9 @@ def animation_init(m)
       return module("undefined")             # Return undefined module for missing members
     end
   end
+
+  # Create an empty map for user_functions
+  animation_new._user_functions = {}
 
   return animation_new
 end

@@ -119,6 +119,7 @@ The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasm
 - Commands `LoRaWanDecoder "` and `LoRaWanName "` to clear name [#23394](https://github.com/arendst/Tasmota/issues/23394)
 - Command `I2sPause` [#23646](https://github.com/arendst/Tasmota/issues/23646)
 - Support for RV3028 RTC [#23672](https://github.com/arendst/Tasmota/issues/23672)
+- Support for RX8030 RTC [#23855](https://github.com/arendst/Tasmota/issues/23855)
 - Extend state JSON message with functional hostname and ipaddress which could be WiFi or Ethernet
 - Internal function 'WSContentSendRaw_P' [#23641](https://github.com/arendst/Tasmota/issues/23641)
 - Universal display driver for ZJY169S0800TG01 ST7789 280x240 [#23638](https://github.com/arendst/Tasmota/issues/23638)
@@ -131,11 +132,13 @@ The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasm
 - Berry f-strings now support ':' in expression [#23618](https://github.com/arendst/Tasmota/issues/23618)
 - Berry preview of animation framework [#23816](https://github.com/arendst/Tasmota/issues/23816)
 - Berry `call()` now works for classes [#23744](https://github.com/arendst/Tasmota/issues/23744)
+- Berry multiplication between string and int [#23850](https://github.com/arendst/Tasmota/issues/23850)
 
 ### Breaking Changed
+- Berry `animate` framework is DEPRECATED, will be replace by `animation` framework [#23854](https://github.com/arendst/Tasmota/issues/23854)
 
 ### Changed
-- ESP8266 platform update from 2025.05.00 to 2025.08.00 [#23801](https://github.com/arendst/Tasmota/issues/23801)
+- ESP8266 platform update from 2025.05.00 to 2025.09.00 [#23864](https://github.com/arendst/Tasmota/issues/23864)
 - ESP32 Platform from 2025.05.30 to 2025.08.30, Framework (Arduino Core) from v3.1.3.250504 to v3.1.3.250808 and IDF from v5.3.3.250501 to v5.3.3.250801 [#23778](https://github.com/arendst/Tasmota/issues/23778)
 - Epdiy library from v1.0.0 to v2.0.0
 - OpenTherm library from v0.9.0 to v1.1.5 [#23704](https://github.com/arendst/Tasmota/issues/23704)
@@ -149,6 +152,7 @@ The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasm
 
 ### Fixed
 - Syslog RFC5424 compliance [#23509](https://github.com/arendst/Tasmota/issues/23509)
+- Unable to use default serial GPIOs by TasmotaSerial regression from v14.5.0 with IDF 5.3.2.250120 [#23775](https://github.com/arendst/Tasmota/issues/23775)
 - AHT30 sensor start with null values after deep sleep [#23624](https://github.com/arendst/Tasmota/issues/23624)
 - NeoPool reset to default settings [#23734](https://github.com/arendst/Tasmota/issues/23734)
 - Berry vulnerability in JSON parsing for unicode [#23603](https://github.com/arendst/Tasmota/issues/23603)

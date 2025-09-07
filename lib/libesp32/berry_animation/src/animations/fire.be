@@ -52,12 +52,6 @@ class FireAnimation : animation.animation
     end
   end
   
-  # Handle parameter changes
-  def on_param_changed(name, value)
-    # No special handling needed - parameters are accessed via virtual members
-    # The default fire palette is set up by factory methods when needed
-  end
-  
   # Simple pseudo-random number generator
   # Uses a linear congruential generator for consistent results
   def _random()
@@ -184,7 +178,8 @@ class FireAnimation : animation.animation
           fire_provider.cycle_period = 0  # Use value-based color mapping, not time-based
           fire_provider.transition_type = 1  # Use sine transition (smooth)
           fire_provider.brightness = 255
-          fire_provider.set_range(0, 255)
+          fire_provider.range_min = 0
+          fire_provider.range_max = 255
           resolved_color = fire_provider
         end
         
@@ -225,6 +220,9 @@ class FireAnimation : animation.animation
       return false
     end
     
+    # Auto-fix time_ms and start_time
+    time_ms = self._fix_time_ms(time_ms)
+
     var strip_length = self.engine.get_strip_length()
     
     # Render each pixel with its current color

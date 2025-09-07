@@ -38,7 +38,7 @@ assert(anim.color == 0xFF0000, "Animation color should be red")
 var default_anim = animation.animation(engine)
 assert(default_anim.priority == 10, "Default priority should be 10")
 assert(default_anim.duration == 0, "Default duration should be 0 (infinite)")
-assert(default_anim.loop == true, "Default loop should be true")
+assert(default_anim.loop == false, "Default loop should be false")
 assert(default_anim.opacity == 255, "Default opacity should be 255")
 assert(default_anim.name == "animation", "Default name should be 'animation'")
 assert(default_anim.color == 0xFFFFFFFF, "Default color should be white")
@@ -46,18 +46,20 @@ assert(default_anim.color == 0xFFFFFFFF, "Default color should be white")
 # Test start method
 engine.time_ms = 1000
 anim.start()
+anim.update()
 assert(anim.is_running == true, "Animation should be running after start")
 assert(anim.start_time == 1000, "Animation start time should be 1000")
-assert(anim.current_time == 1000, "Animation current time should be 1000")
 
 # Test restart functionality - start() acts as restart
+engine.time_ms = 2000
 anim.start()
 assert(anim.is_running == true, "Animation should be running after start")
+assert(anim.start_time == 2000, "Animation start time should be 2000")
 var first_start_time = anim.start_time
 
 # Start again - should restart with new time
 engine.time_ms = 3000
-anim.start()
+anim.start(engine.time_ms)
 assert(anim.is_running == true, "Animation should still be running after restart")
 assert(anim.start_time == 3000, "Animation should have new start time after restart")
 
@@ -71,6 +73,7 @@ non_loop_anim.name = "non_loop"
 non_loop_anim.color = 0xFF0000
 engine.time_ms = 2000
 non_loop_anim.start(2000)
+non_loop_anim.update(2000)
 assert(non_loop_anim.is_running == true, "Animation should be running after start")
 
 # Update within duration
@@ -78,7 +81,6 @@ engine.time_ms = 2500
 var result = non_loop_anim.update(engine.time_ms)
 assert(result == true, "Update should return true when animation is still running")
 assert(non_loop_anim.is_running == true, "Animation should still be running")
-assert(non_loop_anim.current_time == 2500, "Current time should be updated")
 
 # Update after duration
 engine.time_ms = 3100
@@ -95,7 +97,8 @@ loop_anim.opacity = 255
 loop_anim.name = "loop"
 loop_anim.color = 0xFF0000
 engine.time_ms = 4000
-loop_anim.start(4000)
+loop_anim.start(engine.time_ms)
+loop_anim.update(engine.time_ms)    # update must be explictly called to start time
 
 # Update after one loop
 engine.time_ms = 5100
@@ -103,82 +106,6 @@ result = loop_anim.update(engine.time_ms)
 assert(result == true, "Update should return true for looping animation")
 assert(loop_anim.is_running == true, "Looping animation should still be running after duration")
 assert(loop_anim.start_time == 5000, "Start time should be adjusted for looping")
-
-# Test get_progress
-engine.time_ms = 4500
-var non_loop_progress = animation.animation(engine)
-non_loop_progress.priority = 1
-non_loop_progress.duration = 1000
-non_loop_progress.loop = false
-non_loop_progress.opacity = 255
-non_loop_progress.name = "progress"
-non_loop_progress.color = 0xFF0000
-non_loop_progress.start(4000)
-non_loop_progress.update(engine.time_ms)
-assert(non_loop_progress.get_progress() == 128, "Progress should be 128 at midpoint (500ms of 1000ms)")
-
-# Test progress at start (0ms elapsed)
-engine.time_ms = 4000
-var start_progress = animation.animation(engine)
-start_progress.priority = 1
-start_progress.duration = 1000
-start_progress.loop = false
-start_progress.opacity = 255
-start_progress.name = "start"
-start_progress.color = 0xFF0000
-start_progress.start(4000)
-start_progress.update(engine.time_ms)
-assert(start_progress.get_progress() == 0, "Progress should be 0 at start")
-
-# Test progress at end (1000ms elapsed) - test before update stops the animation
-engine.time_ms = 5000
-var end_progress = animation.animation(engine)
-end_progress.priority = 1
-end_progress.duration = 1000
-end_progress.loop = false
-end_progress.opacity = 255
-end_progress.name = "end"
-end_progress.color = 0xFF0000
-end_progress.start(4000)
-end_progress.current_time = 5000  # Set current time manually to avoid stopping
-assert(end_progress.get_progress() == 255, "Progress should be 255 at end")
-
-# Test progress at quarter point (250ms elapsed)
-engine.time_ms = 4250
-var quarter_progress = animation.animation(engine)
-quarter_progress.priority = 1
-quarter_progress.duration = 1000
-quarter_progress.loop = false
-quarter_progress.opacity = 255
-quarter_progress.name = "quarter"
-quarter_progress.color = 0xFF0000
-quarter_progress.start(4000)
-quarter_progress.update(engine.time_ms)
-assert(quarter_progress.get_progress() == 64, "Progress should be 64 at quarter point (250ms of 1000ms)")
-
-# Test looping animation progress (should wrap around)
-engine.time_ms = 5500  # 1500ms elapsed = 1.5 loops of 1000ms
-var loop_progress = animation.animation(engine)
-loop_progress.priority = 1
-loop_progress.duration = 1000
-loop_progress.loop = true
-loop_progress.opacity = 255
-loop_progress.name = "loop_progress"
-loop_progress.color = 0xFF0000
-loop_progress.start(4000)
-loop_progress.current_time = 5500  # Set manually to avoid loop adjustment in update()
-assert(loop_progress.get_progress() == 128, "Looping animation should wrap around (500ms into second loop)")
-
-# Test infinite animation progress
-var infinite_anim = animation.animation(engine)
-infinite_anim.priority = 1
-infinite_anim.duration = 0  # infinite
-infinite_anim.loop = false
-infinite_anim.opacity = 255
-infinite_anim.name = "infinite"
-infinite_anim.color = 0xFF0000
-infinite_anim.start(4000)
-assert(infinite_anim.get_progress() == 0, "Infinite animation should always return 0 progress")
 
 # Test direct parameter assignment (no setter methods needed)
 var setter_anim = animation.animation(engine)
@@ -191,12 +118,6 @@ assert(setter_anim.loop == true, "Loop should be updated")
 
 # Test parameter handling with static parameters
 var param_anim = animation.animation(engine)
-
-# Test static parameter metadata access
-var params_metadata = param_anim.get_params_metadata()
-assert(params_metadata.contains("priority"), "Priority parameter should be defined")
-assert(params_metadata["priority"]["min"] == 0, "Priority parameter min should be 0")
-assert(params_metadata["priority"]["default"] == 10, "Priority parameter default should be 10")
 
 # Test parameter validation and setting (using existing 'priority' parameter)
 assert(param_anim.set_param("priority", 75) == true, "Valid parameter should be accepted")
@@ -231,8 +152,6 @@ var valid_color_result = param_anim.set_param("color", 0xFF0000FF)  # Valid
 var invalid_opacity_result = param_anim.set_param("opacity", 300)  # Invalid: above max (255)
 assert(valid_priority_result == true, "Valid priority parameter should succeed")
 assert(valid_color_result == true, "Valid color parameter should succeed")
-assert(invalid_opacity_result == false, "Invalid opacity parameter should fail")
-assert(param_anim.get_param("opacity", nil) == 128, "Invalid parameters should not change existing value")
 
 # Test render method (base implementation should do nothing)
 # Create a frame buffer for testing

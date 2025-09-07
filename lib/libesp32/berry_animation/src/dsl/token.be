@@ -27,20 +27,20 @@ class Token
   
   static var statement_keywords = [
     "strip", "set", "color", "palette", "animation", 
-    "sequence", "function", "zone", "on", "run"
+    "sequence", "function", "zone", "on", "run", "template", "param", "import"
   ]
   
   static var keywords = [
     # Configuration keywords
-    "strip", "set",
+    "strip", "set", "import",
     
     # Definition keywords
-    "color", "palette", "animation", "sequence", "function", "zone",
+    "color", "palette", "animation", "sequence", "function", "zone", "template", "param", "type",
     
     # Control flow keywords
     "play", "for", "with", "repeat", "times", "forever", "if", "else", "elif",
     "choose", "random", "on", "run", "wait", "goto", "interrupt", "resume",
-    "while", "from", "to", "return",
+    "while", "from", "to", "return", "reset", "restart",
     
     # Modifier keywords (only actual DSL syntax keywords)
     "at", "ease", "sync", "every", "stagger", "across", "pixels",

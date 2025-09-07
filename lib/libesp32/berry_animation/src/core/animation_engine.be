@@ -1,8 +1,5 @@
 # Unified Animation Engine
-# Combines AnimationController, AnimationManager, and Renderer into a single efficient class
 #
-# This unified approach eliminates redundancy and provides a simpler, more efficient
-# animation system for Tasmota LED control.
 
 class AnimationEngine
   # Core properties
@@ -45,20 +42,28 @@ class AnimationEngine
     self.render_needed = false
   end
   
-  # Start the animation engine
-  def start()
+  # Run the animation engine
+  # 
+  # @return self for method chaining
+  def run()
     if !self.is_running
+      var now = tasmota.millis()
       self.is_running = true
-      self.last_update = tasmota.millis() - 10
+      self.last_update = now - 10
       
       if self.fast_loop_closure == nil
         self.fast_loop_closure = / -> self.on_tick()
       end
 
       var i = 0
-      var now = tasmota.millis()
       while (i < size(self.animations))
         self.animations[i].start(now)
+        i += 1
+      end
+
+      i = 0
+      while (i < size(self.sequence_managers))
+        self.sequence_managers[i].start(now)
         i += 1
       end
       
@@ -68,6 +73,8 @@ class AnimationEngine
   end
   
   # Stop the animation engine
+  # 
+  # @return self for method chaining
   def stop()
     if self.is_running
       self.is_running = false
@@ -80,25 +87,23 @@ class AnimationEngine
   end
   
   # Add an animation with automatic priority sorting
-  def add_animation(anim)
-    # Check if animation already exists
-    var i = 0
-    while i < size(self.animations)
-      if self.animations[i] == anim
-        return false
+  # 
+  # @param anim: animation - The animation instance to add (if not already listed)
+  # @return true if succesful (TODO always true)
+  def _add_animation(anim)
+    if (self.animations.find(anim) == nil)   # not already in list
+      # Add and sort by priority (higher priority first)
+      self.animations.push(anim)
+      self._sort_animations()
+      # If the engine is already started, auto-start the animation
+      if self.is_running
+        anim.start(self.time_ms)
       end
-      i += 1
+      self.render_needed = true
+      return true
+    else
+      return false
     end
-    
-    # Add and sort by priority (higher priority first)
-    self.animations.push(anim)
-    self._sort_animations()
-    # If the engine is already started, auto-start the animation
-    if self.is_running
-      anim.start()
-    end
-    self.render_needed = true
-    return true
   end
   
   # Remove an animation
@@ -126,7 +131,7 @@ class AnimationEngine
     self.animations = []
     var i = 0
     while i < size(self.sequence_managers)
-      self.sequence_managers[i].stop_sequence()
+      self.sequence_managers[i].stop()
       i += 1
     end
     self.sequence_managers = []
@@ -135,9 +140,45 @@ class AnimationEngine
   end
   
   # Add a sequence manager
-  def add_sequence_manager(sequence_manager)
+  def _add_sequence_manager(sequence_manager)
     self.sequence_managers.push(sequence_manager)
     return self
+  end
+  
+  # Unified method to add either animations or sequence managers
+  # Detects the class type and calls the appropriate method
+  # 
+  # @param obj: Animation or SequenceManager - The object to add
+  # @return self for method chaining
+  def add(obj)
+    # Check if it's a SequenceManager
+    if isinstance(obj, animation.SequenceManager)
+      return self._add_sequence_manager(obj)
+    # Check if it's an Animation (or subclass)
+    elif isinstance(obj, animation.animation)
+      return self._add_animation(obj)
+    else
+      # Unknown type - provide helpful error message
+      import introspect
+      var class_name = introspect.name(obj)
+      raise "type_error", f"Cannot add object of type '{class_name}' to engine. Expected Animation or SequenceManager."
+    end
+  end
+  
+  # Generic remove method that delegates to specific remove methods
+  # @param obj: Animation or SequenceManager - The object to remove
+  # @return self for method chaining
+  def remove(obj)
+    # Check if it's a SequenceManager
+    if isinstance(obj, animation.SequenceManager)
+      return self.remove_sequence_manager(obj)
+    # Check if it's an Animation (or subclass)
+    elif isinstance(obj, animation.animation)
+      return self.remove_animation(obj)
+    else
+      # Unknown type - provide helpful error message
+      raise "type_error", f"Cannot remove object of type '{classname(obj)}' from engine. Expected Animation or SequenceManager."
+    end
   end
   
   # Remove a sequence manager
@@ -168,6 +209,9 @@ class AnimationEngine
       current_time = tasmota.millis()
     end
     
+    # Check if strip length changed since last time
+    self.check_strip_length()
+    
     # Update engine time
     self.time_ms = current_time
     
@@ -187,7 +231,7 @@ class AnimationEngine
     # Update sequence managers
     var i = 0
     while i < size(self.sequence_managers)
-      self.sequence_managers[i].update()
+      self.sequence_managers[i].update(current_time)
       i += 1
     end
     
@@ -250,6 +294,7 @@ class AnimationEngine
       var rendered = anim.render(self.temp_buffer, time_ms)
       
       if rendered
+        anim.post_render(self.temp_buffer, time_ms)
         # Blend temp buffer into main buffer
         self.frame_buffer.blend_pixels(self.temp_buffer)
       end
@@ -356,6 +401,7 @@ class AnimationEngine
   end
   
   def get_strip_length()
+    self.check_strip_length()
     return self.width
   end
   
@@ -369,6 +415,34 @@ class AnimationEngine
   
   def get_animations()
     return self.animations
+  end
+  
+  # Check if the length of the strip changes
+  #
+  # @return bool - True if strip lengtj was changed, false otherwise
+  def check_strip_length()
+    var current_length = self.strip.length()
+    if current_length != self.width
+      self._handle_strip_length_change(current_length)
+      return true  # Length changed
+    end
+    return false  # No change
+  end
+  
+  # Handle strip length changes by resizing buffers
+  def _handle_strip_length_change(new_length)
+    if new_length <= 0
+      return  # Invalid length, ignore
+    end
+    
+    self.width = new_length
+    
+    # Resize existing frame buffers instead of creating new ones
+    self.frame_buffer.resize(new_length)
+    self.temp_buffer.resize(new_length)
+    
+    # Force a render to clear any stale pixels
+    self.render_needed = true
   end
   
   # Cleanup method for proper resource management
@@ -391,11 +465,5 @@ def create_engine(strip)
   return animation.animation_engine(strip)
 end
 
-# Compatibility function for legacy examples
-def animation_controller(strip)
-  return animation.animation_engine(strip)
-end
-
 return {'animation_engine': AnimationEngine,
-        'create_engine': create_engine,
-        'animation_controller': animation_controller}
+        'create_engine': create_engine}

@@ -7,8 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Added
 - ESP32 ROM SHA Hardware Acceleration to BearSSL (#23819)
 - Extend state JSON message with functional hostname and ipaddress which could be WiFi or Ethernet
+- Berry multiplication between string and int (#23850)
+- Support for RX8030 RTC (#23855)
 
 ### Breaking Changed
+- Berry `animate` framework is DEPRECATED, will be replace by `animation` framework (#23854)
 
 ### Changed
 - ESP32 Platform from 2025.07.31 to 2025.08.30, Framework (Arduino Core) from v3.1.3.250712 to v3.1.3.250808 and IDF from v5.3.3.250707 to v5.3.3.250801 (#23778)
@@ -16,10 +19,12 @@ All notable changes to this project will be documented in this file.
 - ESP8266 platform update from 2025.07.00 to 2025.08.00 (#23801)
 - Support for ESP32-C5 (#23804)
 - Berry update of preview of animation framework (#23816)
+- ESP8266 platform update from 2025.08.00 to 2025.09.00 (#23801)
 
 ### Fixed
 - Syslog RFC5424 compliance (#23509)
 - Berry calling `setmember` with a function (#23825)
+- Unable to use default serial GPIOs by TasmotaSerial regression from v14.5.0 with IDF 5.3.2.250120 (#23775)
 
 ### Removed
 - `user-scalable=no` from HTTP HEADER (#23798)

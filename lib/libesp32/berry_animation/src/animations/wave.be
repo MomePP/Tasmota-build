@@ -87,6 +87,7 @@ class WaveAnimation : animation.animation
   
   # Handle parameter changes
   def on_param_changed(name, value)
+    super(self).on_param_changed(name, value)
     if name == "wave_type"
       self._init_wave_table()  # Regenerate wave table when wave type changes
     end
@@ -199,6 +200,9 @@ class WaveAnimation : animation.animation
       return false
     end
     
+    # Auto-fix time_ms and start_time
+    time_ms = self._fix_time_ms(time_ms)
+    
     var strip_length = self.engine.get_strip_length()
     var i = 0
     while i < strip_length
@@ -243,7 +247,8 @@ def wave_rainbow_sine(engine)
   rainbow_provider.cycle_period = 5000
   rainbow_provider.transition_type = 1  # sine transition
   rainbow_provider.brightness = 255
-  rainbow_provider.set_range(0, 255)
+  rainbow_provider.range_min = 0
+  rainbow_provider.range_max = 255
   anim.color = rainbow_provider
   anim.wave_type = 0  # sine wave
   anim.frequency = 32
