@@ -57,11 +57,15 @@ end
 # Import core framework components
 # These provide the fundamental architecture for the animation system
 
+# Parameter constraint encoder for PARAMS definitions
+import "core/param_encoder" as param_encoder
+register_to_animation(param_encoder)
+
 # Mathematical functions for use in closures and throughout the framework
 import "core/math_functions" as math_functions
 register_to_animation(math_functions)
 
-# Base class for parameter management - shared by Animation and ValueProvider
+# Base class for parameter management and playable behavior - shared by Animation and ValueProvider
 import "core/parameterized_object" as parameterized_object
 register_to_animation(parameterized_object)
 
@@ -76,6 +80,10 @@ register_to_animation(animation_base)
 # Sequence manager for complex animation choreography
 import "core/sequence_manager" as sequence_manager
 register_to_animation(sequence_manager)
+
+# Engine proxy - combines rendering and orchestration
+import "core/engine_proxy" as engine_proxy
+register_to_animation(engine_proxy)
 
 # Unified animation engine - central engine for all animations
 # Provides priority-based layering, automatic blending, and performance optimization
@@ -107,6 +115,8 @@ import "providers/oscillator_value_provider.be" as oscillator_value_provider
 register_to_animation(oscillator_value_provider)
 import "providers/strip_length_provider.be" as strip_length_provider
 register_to_animation(strip_length_provider)
+import "providers/iteration_number_provider.be" as iteration_number_provider
+register_to_animation(iteration_number_provider)
 import "providers/closure_value_provider.be" as closure_value_provider
 register_to_animation(closure_value_provider)
 
@@ -145,20 +155,20 @@ import "animations/gradient" as gradient_animation
 register_to_animation(gradient_animation)
 import "animations/noise" as noise_animation
 register_to_animation(noise_animation)
-import "animations/plasma" as plasma_animation
-register_to_animation(plasma_animation)
-import "animations/sparkle" as sparkle_animation
-register_to_animation(sparkle_animation)
+# import "animations/plasma" as plasma_animation
+# register_to_animation(plasma_animation)
+# import "animations/sparkle" as sparkle_animation
+# register_to_animation(sparkle_animation)
 import "animations/wave" as wave_animation
 register_to_animation(wave_animation)
-import "animations/shift" as shift_animation
-register_to_animation(shift_animation)
-import "animations/bounce" as bounce_animation
-register_to_animation(bounce_animation)
-import "animations/scale" as scale_animation
-register_to_animation(scale_animation)
-import "animations/jitter" as jitter_animation
-register_to_animation(jitter_animation)
+# import "animations/shift" as shift_animation
+# register_to_animation(shift_animation)
+# import "animations/bounce" as bounce_animation
+# register_to_animation(bounce_animation)
+# import "animations/scale" as scale_animation
+# register_to_animation(scale_animation)
+# import "animations/jitter" as jitter_animation
+# register_to_animation(jitter_animation)
 
 # Import palette examples
 import "animations/palettes" as palettes

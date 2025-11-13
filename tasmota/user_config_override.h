@@ -511,7 +511,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_BERRY_PARTITION_WIZARD
 #undef USE_DOMOTICZ
 #undef USE_EMULATION_WEMO                       // Disable Belkin WeMo emulation for Alexa (+18k code, +2k mem)
-//#undef USE_EMULATION_HUE                        // Disable Hue Bridge emulation for Alexa (+14k code, +2k mem common)
+#undef USE_EMULATION_HUE                        // Disable Hue Bridge emulation for Alexa (+14k code, +2k mem common)
 #undef USE_PING
 #undef USE_ENERGY_SENSOR                        // Disable energy sensors (+14k code)
 #undef USE_SHUTTER
@@ -553,12 +553,16 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #define USE_CM110x                               // Add support for CM110x CO2 sensors (+2k7 code)
 #define USE_SCD30                                // [I2cDriver29] Enable Sensiron SCd30 CO2 sensor (I2C address 0x61) (+3k3 code)
 #define USE_SCD40                                // [I2cDriver62] Enable Sensiron SCd40 CO2 sensor (I2C address 0x62) (+3k5 code)
+#define USE_SGP30                                // [I2cDriver18] Enable SGP30 sensor (I2C address 0x58) (+1k1 code)
+#define USE_SGP40                                // [I2cDriver69] Enable SGP40 sensor (I2C address 0x59) (+1k4 code)
+#define USE_IAQ                                  // [I2cDriver46] Enable iAQ-core air quality sensor (I2C address 0x5a) (+0k6 code)
 #define USE_MAX31855                             // Add support for MAX31855 K-Type thermocouple sensor using softSPI
 #define USE_PN532_HSU                            // Add support for PN532 using HSU (Serial) interface (+1k8 code, 140 bytes mem)
 #define USE_RDM6300                              // Add support for RDM6300 125kHz RFID Reader (+0k8)
 #define USE_IBEACON                              // Add support for bluetooth LE passive scan of ibeacon devices (uses HM17 module)
 #define USE_SONOFF_SPM                           // Add support for ESP32 based Sonoff Smart Stackable Power Meter (+11k code)
 #define USE_HRE                                  // Add support for Badger HR-E Water Meter (+1k4 code)
+#define USE_HRXL                                 // Add support for MaxBotix HRXL-MaxSonar ultrasonic range finders (+0k7)
 #define USE_BP1658CJ                             // Add support for BP1658CJ 5 channel led controller as used in Orein OS0100411267 Bulb
 #define USE_ETHERNET                             // Add support for ethernet (+20k code)
 #define USE_DISPLAY_TM1621_SONOFF                // Add support for TM1621 display driver used by Sonoff POWR3xxD and THR3xxD
@@ -616,7 +620,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_EXS_DIMMER                           // Disable support for EX-Store WiFi Dimmer
 //#define USE_HOTPLUG                              // Add support for sensor HotPlug
 //#undef USE_DEVICE_GROUPS                        // Disable support for device groups (+5k6 code)
-//#undef USE_PWM_DIMMER                           // Disable support for MJ-SD01/acenx/NTONPOWER PWM dimmers (+4k5 code)
+#undef USE_PWM_DIMMER                           // Disable support for MJ-SD01/acenx/NTONPOWER PWM dimmers (+4k5 code)
 #undef USE_KEELOQ                               // Disable support for Jarolift rollers by Keeloq algorithm (+4k5 code)
 #undef USE_SONOFF_D1                            // Disable support for Sonoff D1 Dimmer (+0k7 code)
 #undef USE_SHELLY_DIMMER                        // Disable support for Shelly Dimmer (+3k code)
@@ -649,8 +653,6 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #define USE_SHT3X                              // [I2cDriver15] Enable SHT3x (I2C address 0x44 or 0x45) or SHTC3 (I2C address 0x70) sensor (+0k7 code)
 //#define USE_TSL2561                            // [I2cDriver16] Enable TSL2561 sensor (I2C address 0x29, 0x39 or 0x49) using library Joba_Tsl2561 (+2k3 code)
 //#define USE_TSL2591                            // [I2cDriver40] Enable TSL2591 sensor (I2C address 0x29) using library Adafruit_TSL2591 (+1k6 code)
-#define USE_SGP30                              // [I2cDriver18] Enable SGP30 sensor (I2C address 0x58) (+1k1 code)
-#define USE_SGP40                              // [I2cDriver69] Enable SGP40 sensor (I2C address 0x59) (+1k4 code)
 //#define USE_SI1145                             // [I2cDriver19] Enable SI1145/46/47 sensor (I2C address 0x60) (+1k code)
 //#define USE_APDS9960                           // [I2cDriver21] Enable APDS9960 Proximity Sensor (I2C address 0x39). Disables SHT and VEML6070 (+4k7 code)
 //#define USE_MCP230xx                           // [I2cDriver22] Enable MCP23008/MCP23017 - Must define I2C Address in #define USE_MCP230xx_ADDR below - range 0x20 - 0x27 (+4k7 code)
@@ -674,7 +676,6 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 //#define USE_AHT1x                              // [I2cDriver43] Enable AHT10/15 humidity and temperature sensor (I2C address 0x38, 0x39) (+0k8 code)
 #define USE_AHT2x                              // [I2cDriver43] Enable AHT20 instead of AHT1x humidity and temperature sensor (I2C address 0x38) (+0k8 code)
 //#define USE_HDC1080                            // [I2cDriver45] Enable HDC1080 temperature/humidity sensor (I2C address 0x40) (+1k5 code)
-#define USE_IAQ                                // [I2cDriver46] Enable iAQ-core air quality sensor (I2C address 0x5a) (+0k6 code)
 //#define USE_MCP9808                            // [I2cDriver51] Enable MCP9808 temperature sensor (I2C addresses 0x18 - 0x1F) (+0k9 code)
 //#define USE_HP303B                             // [I2cDriver52] Enable HP303B temperature and pressure sensor (I2C address 0x76 or 0x77) (+6k2 code)
 //#define USE_MLX90640                           // [I2cDriver53] Enable MLX90640 IR array temperature sensor (I2C address 0x33) (+20k code)
@@ -728,7 +729,6 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 //#define USE_BLE_ESP32                            // (ESP32 only) Add support for native BLE on ESP32 - use new driver
 //#define USE_MI_ESP32                             // (ESP32 only) Add support for ESP32 as a BLE-bridge (+9k2 mem, +292k flash)
 
-#define USE_HRXL                                 // Add support for MaxBotix HRXL-MaxSonar ultrasonic range finders (+0k7)
 //#define USE_TASMOTA_CLIENT                       // Add support for Arduino Uno/Pro Mini via serial interface including flashing (+2k3 code, 44 mem)
 //#define USE_OPENTHERM                            // Add support for OpenTherm (+15k code)
 //#define USE_MIEL_HVAC                            // Add support for Mitsubishi Electric HVAC serial interface (+5k code)
@@ -1880,7 +1880,7 @@ oo     .d8P `88b    ooo   888  `88b.   888   888              888       888   8 
   #define USE_JAVASCRIPT_ES6                     // Enable ECMAScript6 syntax using less JavaScript code bytes (fails on IE11)
   #define USE_LIGHT
   #define USE_WS2812
-  #define USE_EMULATION
+  //#define USE_EMULATION
   //#define USE_EMULATION_HUE                      // Enable Hue Bridge emulation for Alexa (+14k code, +2k mem common)
   //#define USE_EMULATION_WEMO                     // Enable Belkin WeMo emulation for Alexa (+6k code, +2k mem common)
 
@@ -1953,12 +1953,12 @@ oo     .d8P `88b    ooo   888  `88b.   888   888              888       888   8 
 #endif  // ESP32
 
 // -- Optional modules ----------------------------
-#define ROTARY_V1                                // Add support for Rotary Encoder as used in MI Desk Lamp (+0k8 code)
+//#define ROTARY_V1                                // Add support for Rotary Encoder as used in MI Desk Lamp (+0k8 code)
   #define ROTARY_MAX_STEPS     10                // Rotary step boundary
-#define USE_SONOFF_RF                            // Add support for Sonoff Rf Bridge (+3k2 code)
+//#define USE_SONOFF_RF                            // Add support for Sonoff Rf Bridge (+3k2 code)
   //#define USE_RF_FLASH                           // Add support for flashing the EFM8BB1 chip on the Sonoff RF Bridge. C2CK must be connected to GPIO4, C2D to GPIO5 on the PCB (+2k7 code)
 //#define USE_SONOFF_SC                            // Add support for Sonoff Sc (+1k1 code)
-#define USE_TUYA_MCU                             // Add support for Tuya Serial MCU
+//#define USE_TUYA_MCU                             // Add support for Tuya Serial MCU
   #define TUYA_DIMMER_ID       0                 // Default dimmer Id
 //#define USE_ARMTRONIX_DIMMERS                    // Add support for Armtronix Dimmers (+1k4 code)
 //#define USE_PS_16_DZ                             // Add support for PS-16-DZ Dimmer (+2k code)
@@ -1970,11 +1970,11 @@ oo     .d8P `88b    ooo   888  `88b.   888   888              888       888   8 
 //#define USE_EXS_DIMMER                           // Add support for ES-Store WiFi Dimmer (+1k5 code)
 //  #define EXS_MCU_CMNDS                          // Add command to send MCU commands (+0k8 code)
 //#define USE_HOTPLUG                              // Add support for sensor HotPlug
-#define USE_DEVICE_GROUPS                        // Add support for device groups (+5k6 code)
-#define USE_PWM_DIMMER                           // Add support for MJ-SD01/acenx/NTONPOWER PWM dimmers (+2k5 code)
-  #define USE_PWM_DIMMER_REMOTE                  // Add support for remote switches to PWM Dimmer, also adds device groups support (+1k1 code plus device groups size)
+//#define USE_DEVICE_GROUPS                        // Add support for device groups (+5k6 code)
+//#define USE_PWM_DIMMER                           // Add support for MJ-SD01/acenx/NTONPOWER PWM dimmers (+2k5 code)
+//  #define USE_PWM_DIMMER_REMOTE                  // Add support for remote switches to PWM Dimmer, also adds device groups support (+1k1 code plus device groups size)
 //#define USE_KEELOQ                               // Add support for Jarolift rollers by Keeloq algorithm (+4k5 code)
-#define USE_SONOFF_D1                            // Add support for Sonoff D1 Dimmer (+0k7 code)
+//#define USE_SONOFF_D1                            // Add support for Sonoff D1 Dimmer (+0k7 code)
 
 #define USE_LIGHT
 // -- Optional light modules ----------------------
@@ -1982,11 +1982,11 @@ oo     .d8P `88b    ooo   888  `88b.   888   888              888       888   8 
 //  #define USE_WS2812_DMA                         // DMA supports only GPIO03 (= Serial RXD) (+1k mem). When USE_WS2812_DMA is enabled expect Exceptions on Pow
   #define USE_WS2812_HARDWARE  NEO_HW_WS2812     // Hardware type (NEO_HW_WS2812, NEO_HW_WS2812X, NEO_HW_WS2813, NEO_HW_SK6812, NEO_HW_LC8812, NEO_HW_APA106)
   #define USE_WS2812_CTYPE     NEO_GRB           // Color type (NEO_RGB, NEO_GRB, NEO_BRG, NEO_RBG, NEO_RGBW, NEO_GRBW)
-#define USE_MY92X1                               // Add support for MY92X1 RGBCW led controller as used in Sonoff B1, Ailight and Lohas
-#define USE_SM16716                              // Add support for SM16716 RGB LED controller (+0k7 code)
-#define USE_SM2135                               // Add support for SM2135 RGBCW led control as used in Action LSC (+0k6 code)
+//#define USE_MY92X1                               // Add support for MY92X1 RGBCW led controller as used in Sonoff B1, Ailight and Lohas
+//#define USE_SM16716                              // Add support for SM16716 RGB LED controller (+0k7 code)
+//#define USE_SM2135                               // Add support for SM2135 RGBCW led control as used in Action LSC (+0k6 code)
 //#define USE_SONOFF_L1                            // Add support for Sonoff L1 led control
-#define USE_ELECTRIQ_MOODL                       // Add support for ElectriQ iQ-wifiMOODL RGBW LED controller (+0k3 code)
+//#define USE_ELECTRIQ_MOODL                       // Add support for ElectriQ iQ-wifiMOODL RGBW LED controller (+0k3 code)
 
 // -- Counter input -------------------------------
 #define USE_COUNTER                              // Enable inputs as counter (+0k8 code)
@@ -2008,8 +2008,8 @@ oo     .d8P `88b    ooo   888  `88b.   888   888              888       888   8 
 //    #define USE_BME680                           // Enable support for BME680 sensor using Bosch BME680 library (+4k code)
 //  #define USE_BH1750                             // [I2cDriver11] Enable BH1750 sensor (I2C address 0x23 or 0x5C) (+0k5 code)
 //  #define USE_VEML6070                           // [I2cDriver12] Enable VEML6070 sensor (I2C addresses 0x38 and 0x39) (+1k5 code)
-    #define USE_VEML6070_RSET    270000          // VEML6070, Rset in Ohm used on PCB board, default 270K = 270000ohm, range for this sensor: 220K ... 1Meg
-    #define USE_VEML6070_SHOW_RAW                // VEML6070, shows the raw value of UV-A
+//    #define USE_VEML6070_RSET    270000          // VEML6070, Rset in Ohm used on PCB board, default 270K = 270000ohm, range for this sensor: 220K ... 1Meg
+//    #define USE_VEML6070_SHOW_RAW                // VEML6070, shows the raw value of UV-A
 //  #define USE_ADS1115                            // [I2cDriver13] Enable ADS1115 16 bit A/D converter (I2C address 0x48, 0x49, 0x4A or 0x4B) based on Adafruit ADS1x15 library (no library needed) (+0k7 code)
 //  #define USE_INA219                             // [I2cDriver14] Enable INA219 (I2C address 0x40, 0x41 0x44 or 0x45) Low voltage and current sensor (+1k code)
 //  #define USE_INA226                             // [I2cDriver35] Enable INA226 (I2C address 0x40, 0x41 0x44 or 0x45) Low voltage and current sensor (+2k3 code)
@@ -3390,7 +3390,7 @@ o8o        o888o o888ooooood8  `Y8bood8P'   o88o     o8888o
   #define USE_DISPLAY                            // Add I2C Display Support (+2k code)
     // #define USE_DISPLAY_MODES1TO5                // Enable display mode 1 to 5 in addition to mode 0
     #define USE_DISPLAY_LCD                      // [DisplayModel 1] [I2cDriver3] Enable Lcd display (I2C addresses 0x27 and 0x3F) (+6k code)
-     #define USE_DISPLAY_SSD1306                  // [DisplayModel 2] [I2cDriver4] Enable SSD1306 Oled 128x64 display (I2C addresses 0x3C and 0x3D) (+16k code)
+//     #define USE_DISPLAY_SSD1306                  // [DisplayModel 2] [I2cDriver4] Enable SSD1306 Oled 128x64 display (I2C addresses 0x3C and 0x3D) (+16k code)
      #define USE_DISPLAY_MATRIX                   // [DisplayModel 3] [I2cDriver5] Enable 8x8 Matrix display (I2C adresseses see below) (+11k code)
       // #define MTX_ADDRESS1     0x71              // [DisplayAddress1] I2C address of first 8x8 matrix module
       // #define MTX_ADDRESS2     0x74              // [DisplayAddress2] I2C address of second 8x8 matrix module
@@ -3402,7 +3402,7 @@ o8o        o888o o888ooooood8  `Y8bood8P'   o88o     o8888o
       // #define MTX_ADDRESS8     0x00              // [DisplayAddress8] I2C address of eigth 8x8 matrix module
     // #define USE_DISPLAY_SEVENSEG                 // [DisplayModel 11] [I2cDriver47] Enable sevenseg display (I2C 0x70-0x77) (<+11k code)
       // #define SEVENSEG_ADDRESS1     0x70         // [DisplayAddress1] I2C address of first sevenseg matrix module
-    #define USE_DISPLAY_SH1106                   // [DisplayModel 7] [I2cDriver6] Enable SH1106 Oled 128x64 display (I2C addresses 0x3C and 0x3D)
+//    #define USE_DISPLAY_SH1106                   // [DisplayModel 7] [I2cDriver6] Enable SH1106 Oled 128x64 display (I2C addresses 0x3C and 0x3D)
 
 #endif   // USE_I2C
 
@@ -3410,15 +3410,15 @@ o8o        o888o o888ooooood8  `Y8bood8P'   o88o     o8888o
 #define USE_SPI                                  // Hardware SPI using GPIO12(MISO), GPIO13(MOSI) and GPIO14(CLK) in addition to two user selectable GPIOs(CS and DC)
 #define USE_DISPLAY
 #define USE_UNIVERSAL_DISPLAY
-  #define USE_DISPLAY_ILI9341                  // [DisplayModel 4] Enable ILI9341 Tft 480x320 display (+19k code)
-  #define USE_DISPLAY_ILI9488                  // [DisplayModel 8]
-  #define USE_DISPLAY_SSD1351                  // [DisplayModel 9]
-  #define USE_DISPLAY_RA8876                   // [DisplayModel 10]
-  #define USE_DISPLAY_ST7789                   // [DisplayModel 12] Enable ST7789 module
+//  #define USE_DISPLAY_ILI9341                  // [DisplayModel 4] Enable ILI9341 Tft 480x320 display (+19k code)
+//  #define USE_DISPLAY_ILI9488                  // [DisplayModel 8]
+//  #define USE_DISPLAY_SSD1351                  // [DisplayModel 9]
+//  #define USE_DISPLAY_RA8876                   // [DisplayModel 10]
+//  #define USE_DISPLAY_ST7789                   // [DisplayModel 12] Enable ST7789 module
 //#define USE_DISPLAY_SSD1331                  // [DisplayModel 14] Enable SSD1331 module
 #ifdef ESP32
-  #define USE_DISPLAY_EPAPER_29              // [DisplayModel 5] Enable e-paper 2.9 inch display (+19k code)
-  #define USE_DISPLAY_EPAPER_42              // [DisplayModel 6] Enable e-paper 4.2 inch display
+//  #define USE_DISPLAY_EPAPER_29              // [DisplayModel 5] Enable e-paper 2.9 inch display (+19k code)
+//  #define USE_DISPLAY_EPAPER_42              // [DisplayModel 6] Enable e-paper 4.2 inch display
 #endif // ESP32
 
 // -- Serial sensors ------------------------------
@@ -4070,7 +4070,7 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
  #define USE_DISPLAY                            // Add I2C Display Support (+2k code)
     #define USE_DISPLAY_MODES1TO5                // Enable display mode 1 to 5 in addition to mode 0
     #define USE_DISPLAY_LCD                      // [DisplayModel 1] [I2cDriver3] Enable Lcd display (I2C addresses 0x27 and 0x3F) (+6k code)
-    #define USE_DISPLAY_SSD1306                  // [DisplayModel 2] [I2cDriver4] Enable SSD1306 Oled 128x64 display (I2C addresses 0x3C and 0x3D) (+16k code)
+//    #define USE_DISPLAY_SSD1306                  // [DisplayModel 2] [I2cDriver4] Enable SSD1306 Oled 128x64 display (I2C addresses 0x3C and 0x3D) (+16k code)
     #define USE_DISPLAY_MATRIX                   // [DisplayModel 3] [I2cDriver5] Enable 8x8 Matrix display (I2C adresseses see below) (+11k code)
       #define MTX_ADDRESS1     0x71              // [DisplayAddress1] I2C address of first 8x8 matrix module
       #define MTX_ADDRESS2     0x74              // [DisplayAddress2] I2C address of second 8x8 matrix module
@@ -4082,7 +4082,7 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
       #define MTX_ADDRESS8     0x00              // [DisplayAddress8] I2C address of eigth 8x8 matrix module
       #define USE_DISPLAY_SEVENSEG               // [DisplayModel 11] [I2cDriver47] Enable sevenseg display (I2C 0x70-0x77) (<+11k code)
       #define SEVENSEG_ADDRESS1     0x70         // [DisplayAddress1] I2C address of first sevenseg matrix module
-      #define USE_DISPLAY_SH1106                 // [DisplayModel 7] [I2cDriver6] Enable SH1106 Oled 128x64 display (I2C addresses 0x3C and 0x3D)
+//      #define USE_DISPLAY_SH1106                 // [DisplayModel 7] [I2cDriver6] Enable SH1106 Oled 128x64 display (I2C addresses 0x3C and 0x3D)
 
 #endif   // USE_I2C
 
@@ -4097,14 +4097,14 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
       #define USE_DISPLAY
       #define USE_UNIVERSAL_DISPLAY
     #endif
-       #define USE_DISPLAY_ILI9341                  // [DisplayModel 4] Enable ILI9341 Tft 480x320 display (+19k code)
-       #define USE_DISPLAY_EPAPER_29                // [DisplayModel 5] Enable e-paper 2.9 inch display (+19k code)
-       #define USE_DISPLAY_EPAPER_42                // [DisplayModel 6] Enable e-paper 4.2 inch display
-       #define USE_DISPLAY_ILI9488                  // [DisplayModel 8]
-       #define USE_DISPLAY_SSD1351                  // [DisplayModel 9]
-       #define USE_DISPLAY_RA8876                   // [DisplayModel 10]
-       #define USE_DISPLAY_ST7789                   // [DisplayModel 12] Enable ST7789 module
-       #define USE_DISPLAY_SSD1331                  // [DisplayModel 14] Enable SSD1331 module
+//       #define USE_DISPLAY_ILI9341                  // [DisplayModel 4] Enable ILI9341 Tft 480x320 display (+19k code)
+//       #define USE_DISPLAY_EPAPER_29                // [DisplayModel 5] Enable e-paper 2.9 inch display (+19k code)
+//       #define USE_DISPLAY_EPAPER_42                // [DisplayModel 6] Enable e-paper 4.2 inch display
+//       #define USE_DISPLAY_ILI9488                  // [DisplayModel 8]
+//       #define USE_DISPLAY_SSD1351                  // [DisplayModel 9]
+//       #define USE_DISPLAY_RA8876                   // [DisplayModel 10]
+//       #define USE_DISPLAY_ST7789                   // [DisplayModel 12] Enable ST7789 module
+//       #define USE_DISPLAY_SSD1331                  // [DisplayModel 14] Enable SSD1331 module
   #endif  // USE_NRF24
 #endif  // USE_SPI
 

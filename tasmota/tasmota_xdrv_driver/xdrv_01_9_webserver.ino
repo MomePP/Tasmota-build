@@ -248,9 +248,10 @@ const char HTTP_SCRIPT_INFO_END[] PROGMEM =
 
 const char HTTP_HEAD_STYLE_SSI[] PROGMEM =
   // Signal Strength Indicator
-  ".si{display:inline-flex;align-items:flex-end;height:15px;padding:0}"
-  ".si i{width:3px;margin-right:1px;border-radius:3px;background-color:var(--c_txt)}"
-  ".si .b0{height:25%}.si .b1{height:50%}.si .b2{height:75%}.si .b3{height:100%}.o30{opacity:.3}";
+  ".si{display:inline-flex;align-items:flex-end;height:15px;padding:0;"
+  "i{width:3px;margin-right:1px;border-radius:3px;background-color:var(--c_txt)}"
+  ".b0{height:25%}.b1{height:50%}.b2{height:75%}.b3{height:100%}}"
+  ".o30{opacity:.3}";
 
 // special case if MINIMAL, then we don't use compressed version
 #ifdef FIRMWARE_MINIMAL
@@ -271,7 +272,7 @@ const char HTTP_HEAD_STYLE3_MINIMAL[] PROGMEM =
 #endif  // FIRMWARE_MINIMAL
 
 const char HTTP_MENU_HEAD[] PROGMEM =
-  "<div style='padding:0px 5px;text-align:center;'><h3><hr/>%s<hr/></h3></div>";
+  "<div style='padding:0px 5px;text-align:center;'><h3><hr>%s<hr></h3></div>";
 
 const char HTTP_MSG_SLIDER_SHUTTER[] PROGMEM =
   "<td style='width:70%%'>"
@@ -437,7 +438,7 @@ const char HTTP_COUNTER[] PROGMEM =
   "<br><div id='t' style='text-align:center;'></div>";
 
 const char HTTP_END[] PROGMEM =
-  "<div style='text-align:right;font-size:11px;'><hr/><a href='https://github.com/arendst/Tasmota' target='_blank' style='color:#aaa;'>Tasmota %s %s " D_BY " Theo Arends</a></div>"
+  "<p></p><div style='text-align:right;font-size:11px;'><hr><a href='https://github.com/arendst/Tasmota' target='_blank' style='color:#aaa;'>Tasmota %s %s " D_BY " Theo Arends</a></div>"
   "</div>"
   "</body>"
   "</html>";
@@ -1102,18 +1103,18 @@ void WSContentButton(uint32_t title_index, bool show=true) {
   char action[4];
   char title[100];  // Large to accomodate UTF-16 as used by Russian
 
-  WSContentSend_P(PSTR("<p><form id=but%d style=\"display: %s;\" action='%s' method='get'"),
+  WSContentSend_P(PSTR("<p></p><form id=but%d style=\"display:%s;\" action='%s' method='get'"),
     title_index,
     show ? "block":"none",
     GetTextIndexed(action, sizeof(action), title_index, kButtonAction));
   if (title_index <= BUTTON_RESET_CONFIGURATION) {
     char confirm[100];
-    WSContentSend_P(PSTR(" onsubmit='return confirm(\"%s\");'><button name='%s' class='button bred'>%s</button></form></p>"),
+    WSContentSend_P(PSTR(" onsubmit='return confirm(\"%s\");'><button name='%s' class='button bred'>%s</button></form>"),
       GetTextIndexed(confirm, sizeof(confirm), title_index, kButtonConfirm),
       (!title_index) ? PSTR("rst") : PSTR("non"),
       GetTextIndexed(title, sizeof(title), title_index, kButtonTitle));
   } else {
-    WSContentSend_P(PSTR("><button>%s</button></form></p>"),
+    WSContentSend_P(PSTR("><button>%s</button></form>"),
       GetTextIndexed(title, sizeof(title), title_index, kButtonTitle));
   }
 }
@@ -1121,7 +1122,7 @@ void WSContentButton(uint32_t title_index, bool show=true) {
 /*-------------------------------------------------------------------------------------------*/
 
 void WSContentSpaceButton(uint32_t title_index, bool show=true) {
-  WSContentSend_P(PSTR("<div></div>"));            // 5px padding
+  WSContentSend_P(PSTR("<div></div>"));             // 5px padding
   WSContentButton(title_index, show);
 }
 
@@ -1135,7 +1136,7 @@ void WSContentSeparator(uint32_t state) {
       request = true;
     case 1:    // Print separator if needed
       if (request) {
-        WSContentSend_P(HTTP_SNS_HR);  // <tr><td colspan=2><hr/>{e}
+        WSContentSend_P(HTTP_SNS_HR);  // <tr><td colspan=2><hr>{e}
         request = false;
       }
       break;
@@ -1683,7 +1684,6 @@ void HandleRoot(void) {
   }
 
   // Init buttons 
-  WSContentSend_P(PSTR("<script>"));
   uint32_t max_devices = TasmotaGlobal.devices_present;
 
 #ifdef USE_SONOFF_IFAN
@@ -1692,6 +1692,7 @@ void HandleRoot(void) {
   }
 #endif  // USE_SONOFF_IFAN
 
+  bool use_script = false;
   for (uint32_t idx = 1; idx <= max_devices; idx++) {
     bool not_active = !bitRead(TasmotaGlobal.power, idx -1);
 
@@ -1702,10 +1703,16 @@ void HandleRoot(void) {
 #endif  // USE_SONOFF_IFAN
 
     if (not_active) {
+      if (!use_script) {
+        use_script = true;
+        WSContentSend_P(PSTR("<script>"));
+      }
       WSContentSend_P(PSTR("eb('o%d').style.background='var(--c_btnoff)';"), idx);
     }
   }
-  WSContentSend_P(PSTR("</script>"));
+  if (use_script) {
+    WSContentSend_P(PSTR("</script>"));
+  }
 
   XdrvXsnsCall(FUNC_WEB_ADD_MAIN_BUTTON);
 #endif  // Not FIRMWARE_MINIMAL
@@ -1967,12 +1974,12 @@ bool HandleRootStatusRefresh(void) {
 #ifdef USE_WEB_STATUS_LINE_WIFI
   if (Settings->flag4.network_wifi) {
     int32_t rssi = WiFi.RSSI();
-    WSContentSend_P(PSTR("<div class='wifi' title='%s: " D_RSSI " %d%%, %d dBm' style='padding:0 2px 0 2px;'><div class='arc a3 %s'></div><div class='arc a2 %s'></div><div class='arc a1 %s'></div><div class='arc a0 active'></div></div>"),
+    WSContentSend_P(PSTR("<div class='wifi' title='%s: " D_RSSI " %d%% (%d dBm)'><div class='arc a3%s'></div><div class='arc a2%s'></div><div class='arc a1%s'></div><div class='arc a0'></div></div>"),
                           SettingsTextEscaped(SET_STASSID1 + Settings->sta_active).c_str(),                      
                           WifiGetRssiAsQuality(rssi), rssi,
-                          rssi >= -55 ? "active" : "",
-                          rssi >= -70 ? "active" : "",
-                          rssi >= -85 ? "active" : "");
+                          rssi < -55 ? " o30" : "",
+                          rssi < -70 ? " o30" : "",
+                          rssi < -85 ? " o30" : "");
   }
 #endif // USE_WEB_STATUS_LINE_WIFI
 #ifdef USE_WEB_STATUS_LINE_HEAP
@@ -1991,7 +1998,7 @@ bool HandleRootStatusRefresh(void) {
   WSContentSend_P(PSTR("{t}"));        // <table style='width:100%'>
   WSContentSeparator(3);               // Reset seperator to ignore previous outputs 
   if (Settings->web_time_end) {
-    WSContentSend_P(PSTR("{s}" D_TIMER_TIME "{m}%s{e}"), GetDateAndTime(DT_LOCAL).substring(Settings->web_time_start, Settings->web_time_end).c_str());
+    WSContentSend_P(PSTR("{s}" D_TIME_OF_DAY "{m}%s{e}"), GetDateAndTime(DT_LOCAL).substring(Settings->web_time_start, Settings->web_time_end).c_str());
     WSContentSeparator(0);             // Print separator
   }
   XsnsXdrvCall(FUNC_WEB_SENSOR);
@@ -2225,7 +2232,7 @@ void HandleTemplateConfiguration(void) {
   WSContentSend_P(PSTR("<tr><td><b>" D_TEMPLATE_NAME "</b></td><td style='width:200px'><input id='s1' placeholder='" D_TEMPLATE_NAME "'></td></tr>"
                        "<tr><td><b>" D_BASE_TYPE "</b></td><td><select id='g99' onchange='st(this.value)'></select></td></tr>"
                        "</table>"
-                       "<hr/>"));
+                       "<hr>"));
   WSContentSend_P(HTTP_TABLE100);  // "<table style='width:100%%'>"
   for (uint32_t i = 0; i < MAX_GPIO_PIN; i++) {
 #if CONFIG_IDF_TARGET_ESP32C2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C6
@@ -2570,33 +2577,45 @@ void HandleWifiConfiguration(void) {
             }
             skipduplicated = false;
             String nextSSID = "";
+#ifdef USE_HIGHLIGHT_CONNECTED_AP
+            bool HighlightAP;
+#endif
             // Handle all APs with the same SSID
             for (uint32_t j = 0; j < n; j++) {
               if ((indices[j] < n) && ((nextSSID = WiFi.SSID(indices[j])) == ssid)) {
                 if (!skipduplicated) {
                   // Update RSSI / quality
                   rssi = WiFi.RSSI(indices[j]);
-                  uint32_t rssi_as_quality = WifiGetRssiAsQuality(rssi);
-                  uint32_t num_bars = changeUIntScale(rssi_as_quality, 0, 100, 0, 4);
+                  uint8_t rssi_as_quality = WifiGetRssiAsQuality(rssi);
+                  uint8_t num_bars = changeUIntScale(rssi_as_quality, 0, 100, 0, 4);
 
-                  WSContentSend_P(PSTR("<div title='%d dBm (%d%%)'>"), rssi, rssi_as_quality);
+                  WSContentSend_P(PSTR("<div title='%d%% (%d dBm)'>"), rssi_as_quality, rssi);
                   if (limitScannedNetworks) {
                     // Print SSID and item
                     WSContentSend_P(PSTR("<a href='#p' onclick='c(this)'>%s</a><span class='q'><div class='si'>"), HtmlEscape(ssid_copy).c_str());
                     ssid_showed++;
                     skipduplicated = true; // For the simplified page, just show 1 SSID if there are many Networks with the same
+#ifdef USE_HIGHLIGHT_CONNECTED_AP
+                    HighlightAP = ssid_copy == WiFi.SSID();
+#endif
                   } else {
                     // Print item
-                    WSContentSend_P(PSTR("%s<span class='q'>(%d) <div class='si'>"), WiFi.BSSIDstr(indices[j]).c_str(), WiFi.channel(indices[j])
-                    );
+                    WSContentSend_P(PSTR("%s<span class='q'>(%d) <div class='si'>"), WiFi.BSSIDstr(indices[j]).c_str(), WiFi.channel(indices[j]));
+#ifdef USE_HIGHLIGHT_CONNECTED_AP
+                    HighlightAP = WiFi.BSSIDstr(indices[j]) == WiFi.BSSIDstr();
+#endif
                   }
                   // Print signal strength indicator
-                  for (uint32_t k = 0; k < 4; ++k) {
-                    WSContentSend_P(PSTR("<i class='b%d%s'></i>"), k, (num_bars < k) ? PSTR(" o30") : PSTR(""));
+                  for (uint8_t k = 0; k < 4; k++) {
+#ifdef USE_HIGHLIGHT_CONNECTED_AP
+                    WSContentSend_P(PSTR("<i class='b%d%s'%s></i>"), k, (k >= num_bars) ? PSTR(" o30") : PSTR(""), HighlightAP ? PSTR(" style='background-color:var(--c_btn);'") : PSTR(""));
+#else
+                    WSContentSend_P(PSTR("<i class='b%d%s'></i>"), k, (k >= num_bars) ? PSTR(" o30") : PSTR(""));
+#endif
                   }
-                  WSContentSend_P(PSTR("</span></div></div>"));
+                  WSContentSend_P(PSTR("</div></span></div>"));
                 } else {
-                  if (ssid_showed <= networksToShow ) { networksToShow++; }
+                  if (ssid_showed <= networksToShow) { networksToShow++; }
                 }
                 indices[j] = n;
               }
@@ -2671,7 +2690,7 @@ void HandleWifiConfiguration(void) {
       WSContentSend_P(PSTR(D_CONNECT_FAILED_TO " %s<br>" D_CHECK_CREDENTIALS "</h3></div>"), SettingsTextEscaped(SET_STASSID1).c_str());
     }
     // More Options Button
-    WSContentSend_P(PSTR("<div id=butmod style=\"display:%s;\"></div><p><form id=butmo style=\"display:%s;\"><button type='button' onclick='hidBtns()'>" D_SHOW_MORE_OPTIONS "</button></form></p>"),
+    WSContentSend_P(PSTR("<div id=butmod style=\"display:%s;\"></div><p></p><form id=butmo style=\"display:%s;\"><button type='button' onclick='hidBtns()'>" D_SHOW_MORE_OPTIONS "</button></form>"),
       (WIFI_TEST_FINISHED_BAD == Wifi.wifiTest) ? "none" : Web.initial_config ? "block" : "none", Web.initial_config ? "block" : "none"
     );
     WSContentSpaceButton(BUTTON_RESTORE, !Web.initial_config);
@@ -2926,7 +2945,7 @@ void HandleRestoreConfiguration(void) {
 \*********************************************************************************************/
 
 void WSContentSeparatorI(uint32_t size) {
-  WSContentSend_P(PSTR("</td></tr><tr><td colspan=2><hr style='font-size:2px'%s/>"), (1 == size)?" size=1":"");
+  WSContentSend_P(PSTR("</td></tr><tr><td colspan=2><hr style='font-size:2px'%s>"), (1 == size)?" size=1":"");
 //  WSContentSend_P(PSTR("</td></tr><tr><td colspan=2><hr style='font-size:%dpx'/>"), size);
 //  WSContentSend_P(PSTR("</td></tr><tr><td colspan=2><hr style='border_top:%dpx solid'/>"), size);
 //  WSContentSend_P(PSTR("</td></tr><tr><td colspan=2 style='border-bottom:%dpx solid #ccc;'>"), size);
@@ -2942,7 +2961,6 @@ void WSContentSeparatorIFat(void) {
 /*-------------------------------------------------------------------------------------------*/
 
 void WSContentSeparatorIThin(void) {
-//  WSContentSend_P(PSTR("}1<hr/>}2<hr/>"));  // </td></tr><tr><th><hr/></th><td><hr/>
   WSContentSeparatorI(1);
 }
 
@@ -2984,7 +3002,7 @@ void HandleInformation(void) {
   }
   WSContentSeparatorIFat();
 #ifdef CONFIG_ESP_WIFI_REMOTE_ENABLED
-  WSContentSend_P(PSTR("}1" D_HOSTED_MCU "}2%s (%s)"), GetHostedMCU().c_str(), GetHostedMCUFwVersion().c_str());
+  WSContentSend_P(PSTR("}1" D_HOSTED_MCU "}2%s (%s)"), GetHostedMCU().c_str(), GetHostedFwVersion(1).c_str());
   WSContentSeparatorIFat();
 #endif  // CONFIG_ESP_WIFI_REMOTE_ENABLED
   bool show_hr = false;
@@ -2996,7 +3014,7 @@ void HandleInformation(void) {
   }
   if (Settings->flag4.network_wifi) {
     int32_t rssi = WiFi.RSSI();
-    WSContentSend_P(PSTR("}1" D_AP "%d " D_INFORMATION "}2" D_SSID " %s<br>" D_RSSI " %d%%, %d dBm<br>" D_MODE " %s<br>" D_CHANNEL " %d<br>" D_BSSID " %s"), 
+    WSContentSend_P(PSTR("}1" D_AP "%d " D_INFORMATION "}2" D_SSID " %s<br>" D_RSSI " %d%% (%d dBm)<br>" D_MODE " %s<br>" D_CHANNEL " %d<br>" D_BSSID " %s"), 
       Settings->sta_active +1,
       SettingsTextEscaped(SET_STASSID1 + Settings->sta_active).c_str(),
       WifiGetRssiAsQuality(rssi), rssi,
@@ -3797,7 +3815,7 @@ void HandleManagement(void) {
 
   XdrvMailbox.index = 0;
   XdrvXsnsCall(FUNC_WEB_ADD_CONSOLE_BUTTON);
-//  WSContentSend_P(PSTR("<div></div>"));            // 5px padding
+//  WSContentSend_P(PSTR("<div></div>"));     // 5px padding
   XdrvCall(FUNC_WEB_ADD_MANAGEMENT_BUTTON);
 
   WSContentSpaceButton(BUTTON_MAIN);

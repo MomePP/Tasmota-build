@@ -3,7 +3,67 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - Development
 
-## [15.0.1.3]
+## [15.1.0.1]
+### Added
+- TLS enabled ECDSA by default for ESP8266 (#24009)
+- Berry `cb.free_cb` for extension manager (#24014)
+- Berry `light.get()` direct access to values (#24033)
+- HostedMCU file update using command `HostedLoad <version>|<filename>`
+- Berry `gc_heap` and `gc_time` to `tasmota.memory()` (#24054)
+- Scripter array transfer via UFS (#24060)
+- ESP8266 GPIOViewer memory map if enabled with `#define GV_USE_ESPINFO`
+- Berry `tcp.write()` add `offset` and `len` (#24076)
+- NeoPool command `NPReadLSB`, `NPReadMSB`, `NPWriteLSB`, `NWriteMSB` for directly read/write LSB/MSB of 16-bit register (#24083)
+- Commands `DaliSend` and `DaliQuery` allow extended commands with prefix for DeviceType defaulting to DT6
+
+### Breaking Changed
+
+### Changed
+- Refactored library UDisplay (#24007)
+- LVGL library from v9.3.0 to v9.4.0 (#24028)
+- Increased filesystem file name size from 48 to 50 characters
+- GPIOViewer from v1.6.3 to v1.7.0
+
+### Fixed
+- TLS fix ECDSA and add `SetOption165 1` to enable ECDSA in addition to RSA (#24000)
+- Extension Manager exception when `OtaUrl` is not defined or invalid
+- HASPmota exception in `cpicker` (colorwheel) (#24010)
+- Extension Manager Light Theme support and Extensions input field control
+- InfluxDb receives IPAddress as a value regression from v15.0.1.3 (#24031)
+- Scripter UDP and switch case (#24060)
+- TuyaMCU v1 soft lock when WIFI_SELECT / WIFI_RESET is initiated (#24063)
+- HASPmota `scale` and `angle` for images (#24089)
+
+### Removed
+
+
+## [Released]
+
+## [15.1.0] 20251011
+- Release Stella
+
+## [15.0.1.5] 20251011
+### Changed
+- ESP8266 platform update from 2025.09.00 to 2025.10.00 (#23971)
+- ESP32 Platform from 2025.09.30 to 2025.10.30, Framework (Arduino Core) from v3.1.3.250808 to v3.1.4 and IDF from v5.3.3.250801 to v5.3.4.250826 (#23971)
+- Extension Manager show current version in UI (#23995)
+
+### Fixed
+- Berry fixed 'be_top is non zero' warning when calling C mapped functions (#23989)
+- Berry fixed 'be_top is non zero' when `Br` command fails (#23990)
+
+## [15.0.1.4] 20251002
+### Added
+- ESP32 Extension Manager, replacing loading of Partition Wizard (#23955)
+- Berry animation framework web ui to compile DSL (#23962)
+
+### Changed
+- ESP32 Platform from 2025.08.30 to 2025.09.30, Framework (Arduino Core) from v3.1.3.250808 to v3.1.4 and IDF from v5.3.3.250801 to v5.3.4.250826 (#23888)
+- Use HAL instead of ROM for SHA HW acceleration as used by TLS (#23902)
+- Berry add argument to `werbserver.content_send_style` (#23953)
+- Make GUI Timer parameters mobile phone friendly (#23959)
+
+## [15.0.1.3] 20250908
 ### Added
 - ESP32 ROM SHA Hardware Acceleration to BearSSL (#23819)
 - Extend state JSON message with functional hostname and ipaddress which could be WiFi or Ethernet
@@ -20,6 +80,8 @@ All notable changes to this project will be documented in this file.
 - Support for ESP32-C5 (#23804)
 - Berry update of preview of animation framework (#23816)
 - ESP8266 platform update from 2025.08.00 to 2025.09.00 (#23801)
+- JPEGDEC library from v1.5.0 to v1.8.3 (#23883)
+- Web UI styles and HTML syntax (#23847)
 
 ### Fixed
 - Syslog RFC5424 compliance (#23509)
@@ -72,8 +134,6 @@ All notable changes to this project will be documented in this file.
 - Berry security issues in `berry_mapping` and improve documentation (#23606)
 - Berry Hue regression from #23429 (#23623)
 - AHT30 sensor start with null values after deep sleep (#23624)
-
-## [Released]
 
 ## [15.0.1] 20250614
 - Release Sharon

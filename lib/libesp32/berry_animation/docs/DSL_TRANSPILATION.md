@@ -48,7 +48,7 @@ For detailed information about the DSL transpiler's internal architecture, inclu
 Compiles DSL source code to Berry code without executing it.
 
 ```berry
-var dsl_source = "color red = #FF0000\n"
+var dsl_source = "color red = 0xFF0000\n"
                  "animation red_anim = solid(color=red)\n"
                  "run red_anim"
 
@@ -60,7 +60,7 @@ print(berry_code)  # Shows generated Berry code
 Compiles and executes DSL source code in one step.
 
 ```berry
-animation_dsl.execute("color blue = #0000FF\n"
+animation_dsl.execute("color blue = 0x0000FF\n"
                       "animation blue_anim = solid(color=blue)\n"
                       "run blue_anim for 5s")
 ```
@@ -71,24 +71,13 @@ Loads DSL source from a file and executes it.
 ```berry
 # Create a DSL file
 var f = open("my_animation.dsl", "w")
-f.write("color green = #00FF00\n"
+f.write("color green = 0x00FF00\n"
         "animation pulse_green = pulsating_animation(color=green, period=2s)\n"
         "run pulse_green")
 f.close()
 
 # Load and execute
 animation_dsl.load_file("my_animation.dsl")
-```
-
-### Runtime Management
-
-#### `animation_dsl.create_runtime()`
-Creates a DSL runtime instance for advanced control.
-
-```berry
-var runtime = animation_dsl.create_runtime()
-runtime.load_dsl(dsl_source)
-runtime.execute()
 ```
 
 ## DSL Language Overview
@@ -100,11 +89,11 @@ The Animation DSL uses a declarative syntax with named parameters. All animation
 - **Import statements**: `import module_name` for loading Berry modules
 - **Named parameters**: All function calls use `name=value` syntax
 - **Time units**: `2s`, `500ms`, `1m`, `1h` 
-- **Hex colors**: `#FF0000`, `#80FF0000` (ARGB)
+- **Hex colors**: `0xFF0000`, `0x80FF0000` (ARGB)
 - **Named colors**: `red`, `blue`, `white`, etc.
 - **Comments**: `# This is a comment`
 - **Property assignment**: `animation.property = value`
-- **User functions**: `user.function_name()` for custom functions
+- **User functions**: `function_name()` for custom functions
 
 ### Basic Structure
 
@@ -116,8 +105,8 @@ import user_functions
 strip length 60
 
 # Color definitions
-color red = #FF0000
-color blue = #0000FF
+color red = 0xFF0000
+color blue = 0x0000FF
 
 # Animation definitions with named parameters
 animation pulse_red = pulsating_animation(color=red, period=2s)
@@ -125,7 +114,7 @@ animation comet_blue = comet_animation(color=blue, tail_length=10, speed=1500)
 
 # Property assignments with user functions
 pulse_red.priority = 10
-pulse_red.opacity = user.breathing_effect()
+pulse_red.opacity = breathing_effect()
 comet_blue.direction = -1
 
 # Execution
@@ -149,7 +138,7 @@ animation wave = wave_animation(waveform=SINE)
 # Transpiles to: animation.SINE (direct access)
 
 # If custom_color doesn't exist in animation module  
-color custom_color = #FF0000
+color custom_color = 0xFF0000
 animation solid_red = solid(color=custom_color)
 # Transpiles to: custom_color_ (user-defined variable)
 ```
@@ -242,7 +231,7 @@ animation.register_user_function("rand_demo", rand_demo)
 import user_functions
 
 animation test = solid(color=blue)
-test.opacity = user.rand_demo()
+test.opacity = rand_demo()
 run test
 ```
 
@@ -260,13 +249,133 @@ engine.add(test_)
 engine.run()
 ```
 
+## Berry Code Block Transpilation
+
+The DSL supports embedding arbitrary Berry code using the `berry` keyword with triple-quoted strings. This provides an escape hatch for complex logic while maintaining the declarative nature of the DSL.
+
+### Berry Code Block Syntax
+
+```berry
+# DSL Berry Code Block
+berry """
+import math
+var custom_value = math.pi * 2
+print("Custom calculation:", custom_value)
+"""
+```
+
+### Transpilation Behavior
+
+Berry code blocks are copied verbatim to the generated Berry code with comment markers:
+
+```berry
+# DSL Code
+berry """
+var test_var = 42
+print("Hello from berry block")
+"""
+
+# Transpiles to Berry Code
+# Berry code block
+var test_var = 42
+print("Hello from berry block")
+# End berry code block
+```
+
+### Integration with DSL Objects
+
+Berry code can interact with DSL-generated objects by using the underscore suffix naming convention:
+
+```berry
+# DSL Code
+animation pulse = pulsating_animation(color=red, period=2s)
+berry """
+pulse_.opacity = 200
+pulse_.priority = 10
+"""
+
+# Transpiles to Berry Code
+var pulse_ = animation.pulsating_animation(engine)
+pulse_.color = animation.red
+pulse_.period = 2000
+# Berry code block
+pulse_.opacity = 200
+pulse_.priority = 10
+# End berry code block
+```
+
 ## Advanced DSL Features
 
 ### Templates
 
-Templates provide a DSL-native way to create reusable animation patterns with parameters. Templates are transpiled into Berry functions and automatically registered for use.
+The DSL supports two types of templates: regular templates (functions) and template animations (classes).
 
-#### Template Definition Transpilation
+#### Template Animation Transpilation
+
+Template animations create reusable animation classes extending `engine_proxy`:
+
+```berry
+# DSL Template Animation
+template animation shutter_effect {
+  param colors type palette nillable true
+  param duration type time min 0 max 3600 default 5 nillable false
+  
+  set strip_len = strip_length()
+  color col = color_cycle(palette=colors, cycle_period=0)
+  
+  animation shutter = beacon_animation(
+    color = col
+    beacon_size = strip_len / 2
+  )
+  
+  sequence seq repeat forever {
+    play shutter for duration
+    col.next = 1
+  }
+  
+  run seq
+}
+```
+
+**Transpiles to:**
+
+```berry
+class shutter_effect_animation : animation.engine_proxy
+  static var PARAMS = animation.enc_params({
+    "colors": {"type": "palette", "nillable": true},
+    "duration": {"type": "time", "min": 0, "max": 3600, "default": 5, "nillable": false}
+  })
+  
+  def init(engine)
+    super(self).init(engine)
+    
+    var strip_len_ = animation.strip_length(engine)
+    var col_ = animation.color_cycle(engine)
+    col_.palette = animation.create_closure_value(engine, def (engine) return self.colors end)
+    col_.cycle_period = 0
+    
+    var shutter_ = animation.beacon_animation(engine)
+    shutter_.color = col_
+    shutter_.beacon_size = animation.create_closure_value(engine, def (engine) return animation.resolve(strip_len_) / 2 end)
+    
+    var seq_ = animation.sequence_manager(engine, -1)
+      .push_play_step(shutter_, animation.resolve(self.duration))
+      .push_closure_step(def (engine) col_.next = 1 end)
+    
+    self.add(seq_)
+  end
+end
+```
+
+**Key Features:**
+- Parameters accessed as `self.<param>` and wrapped in closures
+- Constraints (min, max, default, nillable) encoded in PARAMS
+- Uses `self.add()` instead of `engine.add()`
+- Can be instantiated multiple times with different parameters
+
+#### Regular Template Transpilation
+
+Regular templates generate Berry functions:
 
 ```berry
 # DSL Template
@@ -274,11 +383,7 @@ template pulse_effect {
   param color type color
   param speed
   
-  animation pulse = pulsating_animation(
-    color=color
-    period=speed
-  )
-  
+  animation pulse = pulsating_animation(color=color, period=speed)
   run pulse
 }
 ```
@@ -286,88 +391,30 @@ template pulse_effect {
 **Transpiles to:**
 
 ```berry
-def pulse_effect(engine, color, speed)
+def pulse_effect_template(engine, color_, speed_)
   var pulse_ = animation.pulsating_animation(engine)
-  pulse_.color = color
-  pulse_.period = speed
+  pulse_.color = color_
+  pulse_.period = speed_
   engine.add(pulse_)
-  engine.run()
 end
 
-animation.register_user_function("pulse_effect", pulse_effect)
+animation.register_user_function('pulse_effect', pulse_effect_template)
 ```
 
-#### Template Transpilation Process
+#### Template vs Template Animation
 
-1. **Function Generation**: Template becomes a Berry function with `engine` as first parameter
-2. **Parameter Mapping**: Template parameters become function parameters (after `engine`)
-3. **Body Transpilation**: Template body is transpiled using standard DSL rules
-4. **Auto-Registration**: Generated function is automatically registered as a user function
-5. **Type Annotations**: Optional `type` annotations are preserved as comments for documentation
+**Template Animation** (`template animation`):
+- Generates classes extending `engine_proxy`
+- Parameters accessed as `self.<param>`
+- Supports parameter constraints (min, max, default, nillable)
+- Uses `self.add()` for composition
+- Can be instantiated multiple times
 
-#### Template Call Transpilation
-
-```berry
-# DSL Template Call
-pulse_effect(red, 2s)
-```
-
-**Transpiles to:**
-
-```berry
-pulse_effect(engine, animation.red, 2000)
-```
-
-Template calls are transpiled as regular user function calls with automatic `engine` parameter injection.
-
-#### Advanced Template Features
-
-**Multi-Animation Templates:**
-```berry
-template comet_chase {
-  param trail_color type color
-  param bg_color type color
-  param chase_speed
-  
-  animation background = solid_animation(color=bg_color)
-  animation comet = comet_animation(color=trail_color, speed=chase_speed)
-  
-  run background
-  run comet
-}
-```
-
-**Transpiles to:**
-```berry
-def comet_chase(engine, trail_color, bg_color, chase_speed)
-  var background_ = animation.solid_animation(engine)
-  background_.color = bg_color
-  var comet_ = animation.comet_animation(engine)
-  comet_.color = trail_color
-  comet_.speed = chase_speed
-  engine.add(background_)
-  engine.add(comet_)
-  engine.run()
-end
-
-animation.register_user_function("comet_chase", comet_chase)
-```
-
-#### Template vs User Function Transpilation
-
-**Templates** (DSL-native):
-- Defined within DSL files
-- Use DSL syntax in body
-- Automatically registered
-- Type annotations supported
-- Transpiled to Berry functions
-
-**User Functions** (Berry-native):
-- Defined in Berry code
-- Use Berry syntax
-- Manually registered
-- Full Berry language features
-- Called from DSL
+**Regular Template** (`template`):
+- Generates functions
+- Parameters accessed as `<param>_`
+- Uses `engine.add()` for execution
+- Called like functions
 
 ### User-Defined Functions
 
@@ -375,23 +422,24 @@ Register custom Berry functions for use in DSL. User functions must take `engine
 
 ```berry
 # Define custom function in Berry - engine must be first parameter
-def custom_sparkle(engine, color, density, speed)
+def custom_twinkle(engine, color, count, period)
   var anim = animation.twinkle_animation(engine)
   anim.color = color
-  anim.density = density
-  anim.speed = speed
+  anim.count = count
+  atml:parameter>
+</invoke>
   return anim
 end
 
 # Register the function for DSL use
-animation.register_user_function("sparkle", custom_sparkle)
+animation.register_user_function("twinkle", custom_twinkle)
 ```
 
 ```berry
 # Use in DSL - engine is automatically passed as first argument
-animation gold_sparkle = sparkle(#FFD700, 8, 500ms)
-animation blue_sparkle = sparkle(blue, 12, 300ms)
-run gold_sparkle
+animation gold_twinkle = twinkle(0xFFD700, 8, 500ms)
+animation blue_twinkle = twinkle(blue, 12, 300ms)
+run gold_twinkle
 ```
 
 **Important**: The DSL transpiler automatically passes `engine` as the first argument to all user functions. Your function signature must include `engine` as the first parameter, but DSL users don't need to provide it when calling the function.
@@ -404,8 +452,8 @@ Define event handlers that respond to triggers:
 
 ```berry
 # Define animations for different states
-color normal = #000080
-color alert = #FF0000
+color normal = 0x000080
+color alert = 0xFF0000
 
 animation normal_state = solid(color=normal)
 animation alert_state = pulsating_animation(color=alert, period=500ms)
@@ -433,16 +481,13 @@ DSL supports nested function calls for complex compositions:
 ```berry
 # Nested calls in animation definitions (now supported)
 animation complex = pulsating_animation(
-  source=shift_animation(
-    source=solid(color=red), 
-    offset=triangle(min=0, max=29, period=3s)
-  ), 
+  color=red,
   period=2s
 )
 
 # Nested calls in run statements
 sequence demo {
-  play pulsating_animation(source=shift_animation(source=solid(color=blue), offset=5), period=1s) for 10s
+  play pulsating_animation(color=blue, period=1s) for 10s
 }
 ```
 
@@ -521,15 +566,90 @@ sequence demo {
 # Transpiler error: "Undefined reference 'nonexistent_animation' in sequence play"
 ```
 
+**Function Call Safety Validation:**
+```berry
+# Error: Dangerous function creation in computed expression
+set strip_len3 = (strip_length() + 1) / 2
+# Transpiler error: "Function 'strip_length()' cannot be used in computed expressions. 
+#                   This creates a new instance at each evaluation. Use either:
+#                   set var_name = strip_length()  # Single function call
+#                   set computed = (existing_var + 1) / 2  # Computation with existing values"
+```
+
+**Why This Validation Exists:**
+The transpiler prevents dangerous patterns where functions that create instances are called inside computed expressions that get wrapped in closures. This would create a new instance every time the closure is evaluated, leading to:
+- Memory leaks
+- Performance degradation  
+- Inconsistent behavior due to multiple timing states
+
+**Safe Alternative:**
+```berry
+# ✅ CORRECT: Separate function call from computation
+set strip_len = strip_length()      # Single function call
+set strip_len3 = (strip_len + 1) / 2  # Computation with existing value
+```
+
+**Template Parameter Validation:**
+```berry
+# Error: Duplicate parameter names
+template bad_template {
+  param color type color
+  param color type number  # Error: duplicate parameter name
+}
+# Transpiler error: "Duplicate parameter name 'color' in template"
+
+# Error: Reserved keyword as parameter name
+template reserved_template {
+  param animation type color  # Error: conflicts with reserved keyword
+}
+# Transpiler error: "Parameter name 'animation' conflicts with reserved keyword"
+
+# Error: Built-in color name as parameter
+template color_template {
+  param red type number  # Error: conflicts with built-in color
+}
+# Transpiler error: "Parameter name 'red' conflicts with built-in color name"
+
+# Error: Invalid type annotation
+template type_template {
+  param value type invalid_type  # Error: invalid type
+}
+# Transpiler error: "Invalid parameter type 'invalid_type'. Valid types are: [...]"
+
+# Warning: Unused parameter (compilation succeeds)
+template unused_template {
+  param used_color type color
+  param unused_param type number  # Warning: never used
+  
+  animation test = solid(color=used_color)
+  run test
+}
+# Transpiler warning: "Template 'unused_template' parameter 'unused_param' is declared but never used"
+```
+
 ### Error Categories
 
 - **Syntax errors**: Invalid DSL syntax (lexer/parser errors)
 - **Factory validation**: Non-existent or invalid animation/color provider factories
 - **Parameter validation**: Invalid parameter names in constructors or property assignments
+- **Template validation**: Invalid template parameter names, types, or usage patterns
 - **Constraint validation**: Parameter values that violate defined constraints (min/max, enums, types)
 - **Reference validation**: Using undefined colors, animations, or variables
 - **Type validation**: Incorrect parameter types or incompatible assignments
+- **Safety validation**: Dangerous patterns that could cause memory leaks or performance issues
 - **Runtime errors**: Errors during Berry code execution (rare with good validation)
+
+### Warning Categories
+
+The DSL transpiler also generates **warnings** that don't prevent compilation but indicate potential code quality issues:
+
+- **Unused parameters**: Template parameters that are declared but never used in the template body
+- **Code quality**: Suggestions for better coding practices
+
+**Warning Behavior:**
+- Warnings are included as comments in the generated Berry code
+- Compilation succeeds even with warnings present
+- Warnings help maintain code quality without being overly restrictive
 
 ## Performance Considerations
 
@@ -565,17 +685,6 @@ sequence demo {
    var performance_critical_anim = animation.create_optimized_animation()
    ```
 
-3. **Minimize DSL recompilation**:
-   ```berry
-   # Good: Compile once
-   var runtime = animation_dsl.create_runtime()
-   runtime.load_dsl(source)
-   runtime.execute()
-   
-   # Avoid: Recompiling same DSL repeatedly
-   # animation_dsl.execute(same_source)  # Don't do this in loops
-   ```
-
 ## Integration Examples
 
 ### With Tasmota Rules
@@ -587,11 +696,11 @@ import animation_dsl
 
 def handle_rule_trigger(event)
   if event == "motion"
-    animation_dsl.execute("color alert = #FF0000\n"
+    animation_dsl.execute("color alert = 0xFF0000\n"
                           "animation alert_anim = pulsating_animation(color=alert, period=500ms)\n"
                           "run alert_anim for 5s")
   elif event == "door"
-    animation_dsl.execute("color welcome = #00FF00\n"
+    animation_dsl.execute("color welcome = 0x00FF00\n"
                           "animation welcome_anim = breathe_animation(color=welcome, period=2s)\n"
                           "run welcome_anim for 8s")
   end
@@ -632,8 +741,8 @@ webserver.on("/execute_dsl", web_execute_dsl)
    strip length 60
    
    # Colors next
-   color red = #FF0000
-   color blue = #0000FF
+   color red = 0xFF0000
+   color blue = 0x0000FF
    
    # Animations with named parameters
    animation red_solid = solid(color=red)
@@ -654,20 +763,20 @@ webserver.on("/execute_dsl", web_execute_dsl)
 2. **Use meaningful names**:
    ```berry
    # Good
-   color warning_red = #FF0000
+   color warning_red = 0xFF0000
    animation door_alert = pulsating_animation(color=warning_red, period=500ms)
    
    # Avoid
-   color c1 = #FF0000
+   color c1 = 0xFF0000
    animation a1 = pulsating_animation(color=c1, period=500ms)
    ```
 
 3. **Comment your DSL**:
    ```berry
    # Security system colors
-   color normal_blue = #000080    # Idle state
-   color alert_red = #FF0000      # Alert state
-   color success_green = #00FF00  # Success state
+   color normal_blue = 0x000080    # Idle state
+   color alert_red = 0xFF0000      # Alert state
+   color success_green = 0x00FF00  # Success state
    
    # Main security animation sequence
    sequence security_demo {

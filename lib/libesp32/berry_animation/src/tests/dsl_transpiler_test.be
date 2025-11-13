@@ -8,6 +8,25 @@ import animation
 import animation_dsl
 import string
 
+# Helper function to extract all tokens from a pull lexer (for testing only)
+def extract_all_tokens(lexer)
+  var tokens = []
+  lexer.reset()  # Start from beginning
+  
+  while !lexer.at_end()
+    var token = lexer.next_token()
+    
+    # EOF token removed - check for nil instead
+    if token == nil
+      break
+    end
+    
+    tokens.push(token)
+  end
+  
+  return tokens
+end
+
 # Test basic transpilation
 def test_basic_transpilation()
   print("Testing basic DSL transpilation...")
@@ -28,7 +47,7 @@ def test_basic_transpilation()
   assert(berry_code != nil, "Should generate Berry code")
   assert(string.find(berry_code, "var engine = animation.init_strip()") >= 0, "Should generate strip configuration")
   assert(string.find(berry_code, "var custom_red_ = 0xFFFF0000") >= 0, "Should generate color definition")
-  assert(string.find(berry_code, "var demo_ = animation.SequenceManager(engine)") >= 0, "Should generate sequence manager")
+  assert(string.find(berry_code, "var demo_ = animation.sequence_manager(engine)") >= 0, "Should generate sequence manager")
   assert(string.find(berry_code, "engine.add(demo_)") >= 0, "Should add sequence manager")
   
   # print("Generated Berry code:")
@@ -156,7 +175,7 @@ def test_sequences()
   
   var berry_code = animation_dsl.compile(dsl_source)
   assert(berry_code != nil, "Should compile sequence")
-  assert(string.find(berry_code, "var test_seq_ = animation.SequenceManager(engine)") >= 0, "Should define sequence manager")
+  assert(string.find(berry_code, "var test_seq_ = animation.sequence_manager(engine)") >= 0, "Should define sequence manager")
   assert(string.find(berry_code, ".push_play_step(") >= 0, "Should add play step")
   assert(string.find(berry_code, "3000)") >= 0, "Should reference duration")
   assert(string.find(berry_code, "engine.run()") >= 0, "Should start engine")
@@ -184,7 +203,7 @@ def test_sequence_assignments()
   
   var berry_code = animation_dsl.compile(dsl_source)
   assert(berry_code != nil, "Should compile sequence with assignments")
-  assert(string.find(berry_code, "var demo_ = animation.SequenceManager(engine)") >= 0, "Should define sequence manager")
+  assert(string.find(berry_code, "var demo_ = animation.sequence_manager(engine)") >= 0, "Should define sequence manager")
   assert(string.find(berry_code, ".push_closure_step") >= 0, "Should generate closure step")
   assert(string.find(berry_code, "test_.opacity = brightness_") >= 0, "Should generate assignment")
   
@@ -603,15 +622,14 @@ def test_error_handling()
     # Expected behavior
   end
   
-  # Test undefined references - simplified transpiler uses runtime resolution
+  # Test undefined references - should raise exception
   var undefined_ref_dsl = "animation test = undefined_pattern"
   
   try
     var berry_code = animation_dsl.compile(undefined_ref_dsl)
-    # Simplified transpiler uses runtime resolution, so this should compile
-    assert(berry_code != nil, "Should compile with runtime resolution")
+    assert(false, "Should have raised exception for undefined identifier")
   except "dsl_compilation_error" as e, msg
-    assert(false, "Should not raise exception for undefined references: " + msg)
+    # Expected behavior - undefined identifiers should raise exceptions
   end
   
   print("✓ Error handling test passed")
@@ -623,19 +641,26 @@ def test_forward_references()
   print("Testing forward references...")
   
   var dsl_source = "# Forward reference: animation uses color defined later\n" +
-    "animation fire_gradient = gradient(colors=[red, orange])\n" +
+    "animation fire_gradient = gradient_animation(color=red)\n" +
     "color red = 0xFF0000\n" +
     "color orange = 0xFF8000"
   
-  var lexer = animation_dsl.DSLLexer(dsl_source)
-  var tokens = lexer.tokenize()
-  var transpiler = animation_dsl.SimpleDSLTranspiler(tokens)
-  var berry_code = transpiler.transpile()
+  var berry_code = nil
+  var compilation_failed = false
   
-  # Should resolve forward references
-  if berry_code != nil
-    assert(string.find(berry_code, "var red = 0xFFFF0000") >= 0, "Should define red color")
-    assert(string.find(berry_code, "var orange = 0xFFFF8000") >= 0, "Should define orange color")
+  try
+    var lexer = animation_dsl.create_lexer(dsl_source)
+    var transpiler = animation_dsl.SimpleDSLTranspiler(lexer)
+    berry_code = transpiler.transpile()
+  except "dsl_compilation_error" as e, msg
+    compilation_failed = true
+    print("Forward references not yet supported - compilation failed as expected")
+  end
+  
+  # Should resolve forward references if supported
+  if berry_code != nil && !compilation_failed
+    assert(string.find(berry_code, "var red_ = 0xFFFF0000") >= 0, "Should define red color")
+    assert(string.find(berry_code, "var orange_ = 0xFFFF8000") >= 0, "Should define orange color")
     print("Forward references resolved successfully")
   else
     print("Forward references not yet fully implemented - this is expected")
@@ -685,7 +710,7 @@ def test_complex_dsl()
     # Check for key components
     assert(string.find(berry_code, "var engine = animation.init_strip()") >= 0, "Should have default strip initialization")
     assert(string.find(berry_code, "var custom_red_ = 0xFFFF0000") >= 0, "Should have color definitions")
-    assert(string.find(berry_code, "var demo_ = animation.SequenceManager(engine)") >= 0, "Should have sequence definition")
+    assert(string.find(berry_code, "var demo_ = animation.sequence_manager(engine)") >= 0, "Should have sequence definition")
     assert(string.find(berry_code, "engine.add(demo_)") >= 0, "Should have execution")
     
     print("Generated code structure looks correct")
@@ -693,23 +718,12 @@ def test_complex_dsl()
     print("Complex DSL compilation failed - checking for specific issues...")
     
     # Test individual components
-    var lexer = animation_dsl.DSLLexer(complex_dsl)
-    var tokens = lexer.tokenize()
+    var lexer = animation_dsl.create_lexer(complex_dsl)
     
-    if lexer.has_errors()
-      print("Lexical errors found:")
-      print(lexer.get_error_report())
-    else
-      print("Lexical analysis passed")
-      
-      var transpiler = animation_dsl.SimpleDSLTranspiler(tokens)
-      var result = transpiler.transpile()
-      
-      if transpiler.has_errors()
-        print("Transpilation errors found:")
-        print(transpiler.get_error_report())
-      end
-    end
+    print("Lexical analysis passed")
+    
+    var transpiler = animation_dsl.SimpleDSLTranspiler(lexer)
+    var result = transpiler.transpile()
   end
   
   print("✓ Complex DSL test completed")
@@ -724,11 +738,13 @@ def test_transpiler_components()
   print("Testing basic transpiler instantiation...")
   
   # Test token processing
-  var lexer = animation_dsl.DSLLexer("color red = 0xFF0000")
-  var tokens = lexer.tokenize()
+  var lexer = animation_dsl.create_lexer("color red = 0xFF0000")
+  var tokens = extract_all_tokens(lexer)
   assert(size(tokens) >= 4, "Should have multiple tokens")
   
-  var transpiler = animation_dsl.SimpleDSLTranspiler(tokens)
+  # Reset lexer position before creating transpiler
+  lexer.reset()
+  var transpiler = animation_dsl.SimpleDSLTranspiler(lexer)
   assert(!transpiler.at_end(), "Should not be at end initially")
   
   print("✓ Transpiler components test passed")
@@ -1104,7 +1120,7 @@ def test_invalid_sequence_commands()
   
   var result4 = animation_dsl.compile(valid_sequence_dsl)
   assert(result4 != nil, "Should compile valid sequence successfully")
-  assert(string.find(result4, "SequenceManager") >= 0, "Should generate sequence manager")
+  assert(string.find(result4, "sequence_manager") >= 0, "Should generate sequence manager")
   assert(string.find(result4, "push_play_step") >= 0, "Should generate play step")
   assert(string.find(result4, "push_wait_step") >= 0, "Should generate wait step")
   assert(string.find(result4, "log(f\"test message\", 3)") >= 0, "Should generate log statement")

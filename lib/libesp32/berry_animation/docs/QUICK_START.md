@@ -123,11 +123,11 @@ animation comet = comet_animation(
   speed=2000
 )
 
-# Sparkle effect
-animation sparkles = sparkle_animation(
+# Twinkling effect
+animation sparkles = twinkle_animation(
   color=white
-  density=80
-  fade_speed=60
+  count=8
+  period=800ms
 )
 
 run breathing
@@ -178,62 +178,65 @@ var runtime = animation.load_dsl_file("my_animation.anim")
 
 ## Templates - Reusable Animation Patterns
 
-Templates let you create reusable animation patterns with parameters:
+### Template Animations
+
+Template animations create reusable animation classes with parameters:
 
 ```berry
-# Define a template for pulsing effects
+# Define a template animation with constraints
+template animation shutter_effect {
+  param colors type palette nillable true
+  param duration type time min 0 max 3600 default 5 nillable false
+  
+  set strip_len = strip_length()
+  color col = color_cycle(palette=colors, cycle_period=0)
+  
+  animation shutter = beacon_animation(
+    color = col
+    beacon_size = strip_len / 2
+  )
+  
+  sequence seq repeat forever {
+    play shutter for duration
+    col.next = 1
+  }
+  
+  run seq
+}
+
+# Create multiple instances with different parameters
+palette rainbow = [red, orange, yellow, green, blue]
+animation shutter1 = shutter_effect(colors=rainbow, duration=2s)
+animation shutter2 = shutter_effect(colors=rainbow, duration=5s)
+
+run shutter1
+run shutter2
+```
+
+**Template Animation Features:**
+- **Reusable Classes** - Create multiple instances with different parameters
+- **Parameter Constraints** - min, max, default, nillable values
+- **Composition** - Combine multiple animations and sequences
+- **Type Safe** - Parameter type checking
+- **Implicit Parameters** - Automatically inherit parameters from base classes (name, priority, duration, loop, opacity, color, is_running)
+
+### Regular Templates
+
+Regular templates generate functions for simpler use cases:
+
+```berry
 template pulse_effect {
   param color type color
   param speed
   
-  animation pulse = pulsating_animation(
-    color=color
-    period=speed
-  )
-  
+  animation pulse = pulsating_animation(color=color, period=speed)
   run pulse
 }
 
-# Use the template with different parameters
+# Use the template
 pulse_effect(red, 2s)
 pulse_effect(blue, 1s)
-pulse_effect(0xFF69B4, 3s)  # Hot pink
 ```
-
-### Multi-Animation Templates
-
-Templates can contain multiple animations and sequences:
-
-```berry
-template comet_chase {
-  param trail_color type color
-  param bg_color type color
-  param chase_speed
-  
-  # Background glow
-  animation background = solid_animation(color=bg_color)
-  
-  # Moving comet
-  animation comet = comet_animation(
-    color=trail_color
-    tail_length=6
-    speed=chase_speed
-  )
-  
-  run background
-  run comet
-}
-
-# Create different comet effects
-comet_chase(white, blue, 1500)
-comet_chase(orange, black, 2000)
-```
-
-**Template Benefits:**
-- **Reusable** - Define once, use many times
-- **Type Safe** - Optional parameter type checking
-- **Clean Syntax** - Pure DSL, no Berry code needed
-- **Automatic Registration** - Available immediately after definition
 
 ## User-Defined Functions (Advanced)
 
@@ -241,22 +244,22 @@ For complex logic, create custom functions in Berry:
 
 ```berry
 # Define custom function - engine must be first parameter
-def my_sparkle(engine, color, density, speed)
+def my_twinkle(engine, color, count, period)
   var anim = animation.twinkle_animation(engine)
   anim.color = color
-  anim.density = density
-  anim.speed = speed
+  anim.count = count
+  anim.period = period
   return anim
 end
 
 # Register for DSL use
-animation.register_user_function("sparkle", my_sparkle)
+animation.register_user_function("twinkle", my_twinkle)
 ```
 
 ```berry
 # Use in DSL - engine is automatically passed
-animation gold_sparkles = sparkle(0xFFD700, 8, 500ms)
-run gold_sparkles
+animation gold_twinkles = twinkle(0xFFD700, 8, 500ms)
+run gold_twinkles
 ```
 
 **Note**: The DSL automatically passes `engine` as the first argument to user functions.

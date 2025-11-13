@@ -4,6 +4,25 @@
 import animation
 import animation_dsl
 
+# Helper function to extract all tokens from a pull lexer (for testing only)
+def extract_all_tokens(lexer)
+  var tokens = []
+  lexer.reset()  # Start from beginning
+  
+  while !lexer.at_end()
+    var token = lexer.next_token()
+    
+    # EOF token removed - check for nil instead
+    if token == nil
+      break
+    end
+    
+    tokens.push(token)
+  end
+  
+  return tokens
+end
+
 # Test basic palette definition and compilation
 def test_palette_definition()
   print("Testing palette definition...")
@@ -359,12 +378,12 @@ def test_palette_keyword_recognition()
   print("Testing palette keyword recognition...")
   
   var simple_palette_dsl = "palette test = [(0, #FF0000)]"
-  var lexer = animation_dsl.DSLLexer(simple_palette_dsl)
-  var tokens = lexer.tokenize()
+  var lexer = animation_dsl.create_lexer(simple_palette_dsl)
+  var tokens = extract_all_tokens(lexer)
   
   var found_palette_keyword = false
   for token : tokens
-    if token.type == animation_dsl.Token.KEYWORD && token.value == "palette"
+    if token.type == 0 #-animation_dsl.Token.KEYWORD-# && token.value == "palette"
       found_palette_keyword = true
       break
     end
@@ -589,7 +608,8 @@ def test_alternative_syntax_integration()
     "  0xFFFF00\n" +
     "]\n" +
     "\n" +
-    "animation fire_anim = rich_palette_animation(palette=fire_colors, cycle_period=3s)\n" +
+    "color rich_palette2 = color_cycle(palette=fire_colors, cycle_period=3s)\n"
+    "animation fire_anim = solid(color=rich_palette2)\n" +
     "\n" +
     "run fire_anim\n"
   
@@ -599,7 +619,8 @@ def test_alternative_syntax_integration()
   # Verify the generated code contains the expected elements
   import string
   assert(string.find(berry_code, "var fire_colors_ = bytes(") != -1, "Should contain palette definition")
-  assert(string.find(berry_code, "rich_palette_animation(engine)") != -1, "Should contain animation creation")
+  assert(string.find(berry_code, "color_cycle(engine)") != -1, "Should contain value provider creation")
+  assert(string.find(berry_code, "solid(engine)") != -1, "Should contain animation creation")
   assert(string.find(berry_code, "fire_colors_") != -1, "Should reference the palette")
   
   print("✓ Alternative syntax integration test passed")
