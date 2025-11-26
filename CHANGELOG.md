@@ -3,7 +3,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - Development
 
-## [15.1.0.1]
+## [15.1.0.3]
+### Added
+- Support for ESP32-P4 rev.3 (#24146)
+- Support for Analog Gauges (#24153)
+
+### Breaking Changed
+
+### Changed
+- ESP32 Platform from 2025.11.30 to 2025.11.31, Framework (Arduino Core) from v3.1.5 to v3.1.6 and IDF from v5.3.4.251110 to v5.3.4.251110 (#24146)
+
+### Fixed
+- ESP32-P4 Hosted MCU updated to v2.6.6 solving WiFi boot issues (#24146)
+- ESP32-Solo1 using pre-compiled Arduino libraries (#24146)
+- PCA9685 V2 driver PWMTO fading logic and overflow (#24159)
+
+### Removed
+
+## [15.1.0.2] 20251122
+### Added
+- WS2812 and Berry animation support for reverse-order LED strip (#24138)
+- DALI persistence for `DaliTarget` and `DaliChannels` if filesystem is present
+- DALI DT8 RGBWAF color support using Tasmota light control
+
+### Changed
+- ESP32 Platform from 2025.10.30 to 2025.11.30, Framework (Arduino Core) from v3.1.4 to v3.1.5 and IDF from v5.3.4.250826 to v5.3.4.251110 (#24118)
+- JPEGDEC library from v1.8.3 to v1.8.4 (#24120)
+
+### Fixed
+- DALI protocol errors
+
+## [15.1.0.1] 20251115
 ### Added
 - TLS enabled ECDSA by default for ESP8266 (#24009)
 - Berry `cb.free_cb` for extension manager (#24014)
@@ -15,8 +45,6 @@ All notable changes to this project will be documented in this file.
 - Berry `tcp.write()` add `offset` and `len` (#24076)
 - NeoPool command `NPReadLSB`, `NPReadMSB`, `NPWriteLSB`, `NWriteMSB` for directly read/write LSB/MSB of 16-bit register (#24083)
 - Commands `DaliSend` and `DaliQuery` allow extended commands with prefix for DeviceType defaulting to DT6
-
-### Breaking Changed
 
 ### Changed
 - Refactored library UDisplay (#24007)
@@ -33,9 +61,6 @@ All notable changes to this project will be documented in this file.
 - Scripter UDP and switch case (#24060)
 - TuyaMCU v1 soft lock when WIFI_SELECT / WIFI_RESET is initiated (#24063)
 - HASPmota `scale` and `angle` for images (#24089)
-
-### Removed
-
 
 ## [Released]
 
