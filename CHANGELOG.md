@@ -3,13 +3,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - Development
 
-## [15.2.0.1]
+## [15.2.0.2]
 ### Added
+- Support for Adafruit I2C QT Rotary Encoder (#24270)
+- Zigbee support for `int24` type (#24334)
 
 ### Breaking Changed
 
 ### Changed
+- ESP8266 platform update from 2025.10.00 to 2025.12.00 (#24254)
+- ESP32 Platform from 2025.12.30 to 2025.12.31, Framework (Arduino Core) from v3.1.7 to v3.1.8 and IDF from v5.3.4.251205 to v5.3.4.251223 (#24254)
+- Refactor Adafruit Seesaw soil driver (#24270)
+- LM75AD output when no valid reading received from 0 to null (#24263)
+
+### Fixed
+- ESP32 BLE not starting (#24240)
+- GDK101 power on detection (#24242)
+- Udisplay backlight with SPI displays (#24277)
+- ESP8266 KNX unwanted reply (#24267)
+- Zigbee compilation warning in Berry mapping (#24333)
+- ScrubDNS() function (#23886)
+
+### Removed
+
+## [15.2.0.1]
+### Added
+- Support for TCA9554 8-bit I/O expander mutually exclusive with PCA9557
+
+### Changed
 - Vid6608 library from v1.0.2 to v1.0.3 (#24218)
+- IRremoteESP8266 library from v2.8.6 to v2.8.6-ca474a6 (#24226)
+- Update Zigbee WebUI (#24224)
 
 ### Fixed
 - DALI watchdog exception
@@ -18,6 +42,7 @@ All notable changes to this project will be documented in this file.
 - ESP32-P4 unique MQTT Client based on hosted MCU MAC address
 
 ### Removed
+- Berry `animate` to be replaced with `animation` framework (#24241)
 
 ## [Released]
 

@@ -1,6 +1,6 @@
 # Unit tests for Crenel Position Animation
 #
-# This file contains comprehensive tests for the CrenelPositionAnimation class
+# This file contains comprehensive tests for the crenel class
 # to ensure it works correctly with various parameters and edge cases.
 #
 # Command to run tests:
@@ -31,12 +31,12 @@ def run_tests()
   var engine = animation.create_engine(strip)
   
   # Test 1: Basic construction with new parameterized pattern
-  var crenel = animation.crenel_position_animation(engine)
+  var crenel = animation.crenel(engine)
   test_assert(crenel != nil, "Crenel position animation creation")
   
   # Set parameters via virtual member assignment
   crenel.color = 0xFFFF0000
-  crenel.back_color = 0xFF000000
+  crenel.back_color = 0x00000000  # transparent (default)
   crenel.pos = 4
   crenel.pulse_size = 2
   crenel.low_size = 3
@@ -95,7 +95,7 @@ def run_tests()
   crenel.pulse_size = 2
   crenel.low_size = 3
   crenel.nb_pulse = -1  # Infinite
-  crenel.back_color = 0xFF000000  # Transparent
+  crenel.back_color = 0x00000000  # Transparent (default)
   crenel.start()
   
   var rendered = crenel.render(frame, engine.time_ms, engine.strip_length)
@@ -124,7 +124,7 @@ def run_tests()
   
   # Test 7: Limited number of pulses
   frame.clear()
-  crenel.back_color = 0xFF000000  # Transparent background
+  crenel.back_color = 0x00000000  # Transparent background (default)
   crenel.nb_pulse = 2  # Only 2 pulses
   crenel.render(frame, engine.time_ms, engine.strip_length)
   
@@ -222,11 +222,9 @@ def run_tests()
   crenel.nb_pulse = 10
   test_assert(crenel.nb_pulse == 10, "Nb_pulse parameter updated")
   
-  # Test 15: String representation
-  var str_repr = crenel.tostring()
+  # Test 15: String representation (uses default from Berry)
+  var str_repr = str(crenel)
   test_assert(type(str_repr) == "string", "String representation returns string")
-  import string
-  test_assert(string.find(str_repr, "CrenelPositionAnimation") >= 0, "String representation contains class name")
   
   # Test 16: Edge case - very large frame
   var large_frame = animation.frame_buffer(100)
