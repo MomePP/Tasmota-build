@@ -3,12 +3,91 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - Development
 
-## [15.2.0.4]
+## [15.3.0.3]
+### Added
+
+### Breaking Changed
+
+### Changed
+- ESP8266 platform update from 2026.02.00 to 2026.03.00 (#24547)
+- ESP32 Platform from 2025.02.30 to 2026.03.30, Framework (Arduino Core) from v3.1.9 to v3.1.10 and IDF from v5.3.4.251226 to v5.3.4.260127 (#24547)
+- Matter don't advertize IPv6 global address, only link-local
+
+### Fixed
+- Athom esp32 2-3-4 gang change led behaviour after firmware update (#24509)
+- ESP8266 heap drain and exception 29 when DHCP provides NTP server (#24515)
+
+### Removed
+- Berry removed `BE_USE_PRECOMPILED_OBJECT` which is enforced in Tasmota
+
+## [15.3.0.2] 20260315
+### Added
+- ESP8266 redesigned I2C Wire driver to support second I2C bus
+- Environment sensors CCS811, SGP30 and SGP40 second I2C bus support
+- Real Time Clocks BM8563, PCF85063 and PCF85363 second I2C bus support
+- LCD second I2C bus support
+- Berry add `loglevel` to `mqtt.publish()` (#24551)
+
+### Changed
+- Adafruit_BusIO library from v1.11.0 to v1.17.4
+- Adafruit_CCS811 library from v1.0.0.14 to v1.1.3
+- Adafruit SGP30 library from v1.2.0 to v2.0.3
+- Adafruit SGP40 library from v1.1.0 to v1.1.4
+
+### Fixed
+- Crash when shutting down Wifi with `Wifi 0` (#24536)
+
+### Removed
+- Berry remove `mdns.stop()` (#24549)
+
+## [15.3.0.1] 20260308
+### Added
+- Support for Sensirion SCD43 CO2 sensor
+- I2S full duplex, auto rx sample rate (#24469)
+- Support for Sensirion STCC4 CO2 sensor
+- Support for JSON value pair `"ARCH"` in template being either ESP8266, ESP32, ESP32C2, ESP32C3, ESP32C5, ESP32C6, ESP32H2, ESP32H4, ESP32P4, ESP32S2 or ESP32S3
+
+### Changed
+- LVGL library from v9.4.0 to v9.5.0 (#24470)
+- Matter improved parameters handling (#24471)
+- Sensirion Core library from v0.6.0 to v0.7.2
+- Sen5x power on delay of 60ms (#24452)
+- SHT1x software reset I2C bus after initial (un)detection
+
+### Fixed
+- Do not free BT memory when in use (#24480)
+- Berry avoid `tasmota.wifi()` returning bad values when wifi is turned off (#24505)
+- Don't send extraneous `0\r\n\r\n` with non-chunked HTTP/1.0 (#24518)
+- File upload improvements: `/ufsu` api mode, no interrupts disabling, cleaner confirmation page (#24521)
+
+### Removed
+- Berry `tasmota.urlbecload()` superseded by Extension Manager (#24493)
+
+## [Released]
+
+## [15.3.0]
+- Release Susan
+
+## [15.2.0.6] 20260219
+### Added
+- Support for Sensirion SEN6x indoor air quality sensor (#24386)
+- Support for I2C FM24Cxx FRAM block read/write/format commands (#24457)
+
+### Changed
+- ESP8266 platform update from 2026.01.00 to 2026.02.00 (#24460)
+
+## [15.2.0.5] 20260214
+### Added
+- ESP32 support SPI bus2 for Ethernet and SDCard (#24433)
+- Support for RX8025T RTC (#24445)
+
+### Changed
+- ESP32 Platform from 2025.01.30 to 2026.02.30, Framework (Arduino Core) from v3.1.9 to v3.1.10 and IDF from v5.3.4.251226 to v5.3.4.260127 (#24444)
+
+## [15.2.0.4] 20260212
 ### Added
 - Dingtian `SetOption81 1` to invert input and `SetOption133 1` to invert output (#24364)
 - Improv USB CDC connected devices
-
-### Breaking Changed
 
 ### Changed
 - Dingtian define `DINGTIAN_INPUTS_INVERTED` replaced by `SetOption81` (#24364)
@@ -18,6 +97,7 @@ All notable changes to this project will be documented in this file.
 - ESP32 BearSSL hw accelerated SHA1 (#24397)
 
 ### Removed
+- AlpineJS 2.8.2 - not needed anymore (#24427)
 
 ## [15.2.0.3] 20260124
 ### Added
@@ -69,8 +149,6 @@ All notable changes to this project will be documented in this file.
 ### Removed
 - Berry `animate` to be replaced with `animation` framework (#24241)
 
-## [Released]
-
 ## [15.2.0]
 - Release Stephan
 
@@ -82,7 +160,6 @@ All notable changes to this project will be documented in this file.
 - Berry `tasmota.micros()` to get time in microseconds (#24192)
 - Support for AGS02MA TVOC sensor (#24109)
 
-## [15.0.1.5] 20251011
 ### Changed
 - ESP32 Platform from 2025.11.30 to 2025.11.31, Framework (Arduino Core) from v3.1.5 to v3.1.6 and IDF from v5.3.4.251110 to v5.3.4.251110 (#24146)
 - Refactored DALI using TasmotaDali library v1.0.0 adding frame receive buffer

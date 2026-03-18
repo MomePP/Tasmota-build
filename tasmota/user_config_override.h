@@ -105,6 +105,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_KEELOQ                               // Add support for controling Jarolift rollers by Keeloq algorithm
 #undef USE_SONOFF_D1                            // Add support for Sonoff D1 Dimmer
 #undef USE_THERMOSTAT                           // Add support for Thermostat (+9k code)
+#undef USE_SHELLY_PRO                           // Add support for Shelly Pro
 #undef USE_SHELLY_DIMMER                        // Add support for Shelly Dimmer (+2k2 code)
   #undef SHELLY_CMDS                            // Add command to send co-processor commands (+0k4 code)
   #undef SHELLY_FW_UPGRADE                      // Add firmware upgrade option for co-processor (+30k code, +5k mem)
@@ -1008,7 +1009,6 @@ d'""""""d888' `888'  d8P'  `Y8b   `888'   `Y8b `888'     `8 `888'     `8
 #define CODE_IMAGE_STR "zigbee"
 
 //#define USE_ARDUINO_OTA                          // Add optional support for Arduino OTA (+13k code)
-//#define USE_DOMOTICZ                             // Enable Domoticz (+6k code, +0.3k mem)
 //#define USE_HOME_ASSISTANT                       // Enable Home Assistant Discovery Support (+7k code)
 
 //#define USE_MQTT_TLS                             // Use TLS for MQTT connection (+34.5k code, +7.0k mem and +4.8k additional during connection handshake)
@@ -1056,9 +1056,6 @@ d'""""""d888' `888'  d8P'  `Y8b   `888'   `Y8b `888'     `8 `888'     `8
   #undef  ETH_ADDRESS
   #define ETH_ADDRESS 1 // PHY1
 #endif  // ESP32
-
-#define USE_UFILESYS
-#define GUI_TRASH_FILE
 
 // -- Optional modules ----------------------------
 //#define ROTARY_V1                                // Add support for MI Desk Lamp
@@ -1293,7 +1290,6 @@ dBBBBBP     dBP     dBBBBb    dBBBBb     dBBBP      dBBBP     dBBBBb   dBBBBBb  
 #define ETH_ADDRESS 1 // PHY1
 
 //#define USE_ARDUINO_OTA                          // Add optional support for Arduino OTA (+13k code)
-//#define USE_DOMOTICZ                             // Enable Domoticz (+6k code, +0.3k mem)
 //#define USE_HOME_ASSISTANT                       // Enable Home Assistant Discovery Support (+7k code)
 
 //#define USE_MQTT_TLS                             // Use TLS for MQTT connection (+34.5k code, +7.0k mem and +4.8k additional during connection handshake)
@@ -1333,9 +1329,6 @@ dBBBBBP     dBP     dBBBBb    dBBBBb     dBBBP      dBBBP     dBBBBb   dBBBBBb  
   #define USE_WEBCLIENT
   #define USE_WEBCLIENT_HTTPS
 #endif  // ESP32
-
-#define USE_UFILESYS
-#define GUI_TRASH_FILE
 
 // -- Optional modules ----------------------------
 //#define ROTARY_V1                                // Add support for MI Desk Lamp
@@ -1555,7 +1548,6 @@ dBBBBBP     dBP     dBBBBb    dBBBBb     dBBBP      dBBBP     dBBBBb   dBBBBBb  
 #define CODE_IMAGE_STR "gps"
 
 //#define USE_ARDUINO_OTA                          // Add optional support for Arduino OTA (+13k code)
-//#define USE_DOMOTICZ                             // Enable Domoticz (+6k code, +0.3k mem)
 //#define USE_HOME_ASSISTANT                       // Enable Home Assistant Discovery Support (+7k code)
 
 //#define USE_MQTT_TLS                             // Use TLS for MQTT connection (+34.5k code, +7.0k mem and +4.8k additional during connection handshake)
@@ -1870,9 +1862,6 @@ oo     .d8P `88b    ooo   888  `88b.   888   888              888       888   8 
 
 #undef CODE_IMAGE_STR
 #define CODE_IMAGE_STR "scripting"
-
-#define USE_UFILESYS
-#define GUI_TRASH_FILE
 
 #define USE_TLS
 
@@ -3258,9 +3247,6 @@ o8o        o888o o888ooooood8  `Y8bood8P'   o88o     o8888o
    #define SUPPORT_IF_STATEMENT                 // Add support for IF statement in rules (+4k2 code, -332 bytes mem)
  #define SUPPORT_MQTT_EVENT                     // Support trigger event with MQTT subscriptions (+3k5 code)
 
-#define USE_UFILESYS
-#define GUI_TRASH_FILE
-
 #ifdef ESP32
   #undef OTA_URL
   #define OTA_URL "https://github.com/tasmota/install/raw/main/firmware/unofficial/tasmota32-mega.bin"
@@ -3567,9 +3553,6 @@ o8o        o888o o888ooooood8  `Y8bood8P'   o88o     o8888o
 //  #define USE_EXPRESSION                         // Add support for expression evaluation in rules (+3k2 code, +64 bytes mem)
 //    #define SUPPORT_IF_STATEMENT                 // Add support for IF statement in rules (+4k2 code, -332 bytes mem)
 //  #define SUPPORT_MQTT_EVENT                     // Support trigger event with MQTT subscriptions (+3k5 code)
-
-#define USE_UFILESYS
-#define GUI_TRASH_FILE
 
 #ifdef ESP32
   #undef OTA_URL
@@ -3918,9 +3901,6 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 #undef CODE_IMAGE_STR
 #define CODE_IMAGE_STR "platinum"
 
-#define USE_UFILESYS
-#define GUI_TRASH_FILE
-
 #define USE_DOMOTICZ                             // Enable Domoticz (+6k code, +0.3k mem)
 #define USE_TASMOTA_DISCOVERY
 
@@ -4214,9 +4194,6 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 
 #undef CODE_IMAGE_STR
 #define CODE_IMAGE_STR "titanium"
-
-#define USE_UFILESYS
-#define GUI_TRASH_FILE
 
 #define USE_DOMOTICZ                             // Enable Domoticz (+6k code, +0.3k mem)
 #define USE_TASMOTA_DISCOVERY
