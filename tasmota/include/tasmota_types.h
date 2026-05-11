@@ -215,6 +215,8 @@ typedef union {                            // Restricted by MISRA-C Rule 18.4 bu
   };
 } SOBitfield6;
 
+const uint8_t MAX_SETOPTION_USED = 165;    // Max number of SetOption. Used by command SetOption to display all states
+
 // Bitfield to be used for persistent multi bit
 typedef union {
   uint32_t data;                           // Allow bit manipulation
@@ -349,7 +351,7 @@ typedef union {                            // Restricted by MISRA-C Rule 18.4 bu
     uint32_t contrast : 3;
     uint32_t brightness : 3;
     uint32_t saturation : 3;
-    uint32_t resolution : 4;
+    uint32_t resolution : 4;                // Resolution bits0..4
   };
 } WebCamCfg;
 
@@ -363,7 +365,7 @@ typedef union {
     uint32_t agc_gain: 5;
     uint32_t special_effect : 3;
     uint32_t auth : 1;
-    uint32_t spare29 : 1;
+    uint32_t resolution : 1;                // Resolution bit5
     uint32_t spare30 : 1;
     uint32_t upgraded : 1;
   };

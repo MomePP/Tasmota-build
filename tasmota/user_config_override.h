@@ -529,11 +529,6 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 #define USE_ENHANCED_GUI_WIFI_SCAN
 #define USE_INFLUXDB                             // Enable influxdb support (+5k code)
-#define USE_BUZZER                               // Add support for a buzzer (+0k6 code)
-#define USE_LIGHT_PALETTE                        // Add support for color palette (+0k9 code)
-#define USE_LIGHT_ARTNET                         // Add support for DMX/ArtNet via UDP on port 6454 (+3.5k code)
-#define USE_MGS                                  // [I2cDriver17] Enable Xadow and Grove Mutichannel Gas sensor using library Multichannel_Gas_Sensor (+10k code)
-#define USE_SHT                                  // [I2cDriver8] Enable SHT1X sensor (+1k4 code)
 #define USE_HIH6                                 // [I2cDriver36] Enable Honeywell HIH Humidity and Temperature sensor (I2C address 0x27) (+0k6)
 #define USE_MCP23XXX_DRV                         // [I2cDriver77] Enable MCP23xxx support as virtual switch/button/relay (+3k(I2C)/+5k(SPI) code)
 #define USE_ADS1115                              // [I2cDriver13] Enable ADS1115 16 bit A/D converter (I2C address 0x48, 0x49, 0x4A or 0x4B) based on Adafruit ADS1x15 library (no library needed) (+0k7 code)
@@ -557,6 +552,7 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #define USE_SGP30                                // [I2cDriver18] Enable SGP30 sensor (I2C address 0x58) (+1k1 code)
 #define USE_SGP40                                // [I2cDriver69] Enable SGP40 sensor (I2C address 0x59) (+1k4 code)
 #define USE_IAQ                                  // [I2cDriver46] Enable iAQ-core air quality sensor (I2C address 0x5a) (+0k6 code)
+#define USE_MHZ19                                // Add support for MH-Z19 CO2 sensor (+2k code)
 #define USE_MAX31855                             // Add support for MAX31855 K-Type thermocouple sensor using softSPI
 #define USE_PN532_HSU                            // Add support for PN532 using HSU (Serial) interface (+1k8 code, 140 bytes mem)
 #define USE_RDM6300                              // Add support for RDM6300 125kHz RFID Reader (+0k8)
@@ -568,7 +564,6 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #define USE_ETHERNET                             // Add support for ethernet (+20k code)
 #define USE_DISPLAY_TM1621_SONOFF                // Add support for TM1621 display driver used by Sonoff POWR3xxD and THR3xxD
 #define USE_LOX_O2                               // Add support for LuminOx LOX O2 Sensor (+0k8 code)
-#define USE_SERIAL_BRIDGE                        // Add support for software Serial Bridge (+2k code)
 #define USE_MODBUS_BRIDGE                        // Add support for software Modbus Bridge (+3k code)
 #define USE_MP3_PLAYER                           // Use of the DFPlayer Mini MP3 Player RB-DFR-562 commands: play, volume and stop
 #define USE_TM1638                               // Add support for TM1638 switches copying Switch1 .. Switch8 (+1k code)
@@ -597,18 +592,51 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #define USE_KNX                                  // Enable KNX IP Protocol Support (+23k code, +3k3 mem)
 #endif
 
-#define USE_TUYA_MCU                             // Add support for Tuya Serial MCU
-#ifndef TUYA_DIMMER_ID
-  #define TUYA_DIMMER_ID       0                 // Default dimmer Id
-#endif
-
-#endif // CONFIG_IDF_TARGET_ESP32C3
-
 #define USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k code, 0k3 mem, 48 iram)
   #define USE_IR_RECEIVE                         // Support for IR receiver (+5k5 code, 264 iram)
 #define USE_RC_SWITCH                            // Add support for RF transceiver using library RcSwitch (+2k7 code, 460 iram)
 #define USE_SDCARD
 #define ROTARY_V1
+
+#define USE_TUYA_MCU                             // Add support for Tuya Serial MCU
+#ifndef TUYA_DIMMER_ID
+  #define TUYA_DIMMER_ID       0                 // Default dimmer Id
+#endif
+#define USE_DEEPSLEEP                            // Add support for deepsleep (+1k code)
+
+#endif // CONFIG_IDF_TARGET_ESP32C3
+
+#define USE_BERRY
+#undef USE_BERRY_TCPSERVER
+#define USE_WEBCLIENT
+#define USE_WEBCLIENT_HTTPS
+
+#define USE_BUZZER                               // Add support for a buzzer (+0k6 code)
+#define USE_LIGHT_PALETTE                        // Add support for color palette (+0k9 code)
+#define USE_LIGHT_ARTNET                         // Add support for DMX/ArtNet via UDP on port 6454 (+3.5k code)
+#define USE_MGS                                  // [I2cDriver17] Enable Xadow and Grove Mutichannel Gas sensor using library Multichannel_Gas_Sensor (+10k code)
+#define USE_SHT                                  // [I2cDriver8] Enable SHT1X sensor (+1k4 code)
+#define USE_SENSEAIR                             // Add support for SenseAir K30, K70 and S8 CO2 sensor (+2k3 code)
+#ifndef CO2_LOW
+  #define CO2_LOW              800               // Below this CO2 value show green light (needs PWM or WS2812 RG(B) led and enable with SetOption18 1)
+#endif
+#ifndef CO2_HIGH
+  #define CO2_HIGH             1200              // Above this CO2 value show red light (needs PWM or WS2812 RG(B) led and enable with SetOption18 1)
+#endif
+#define USE_PMS5003                              // Add support for PMS5003 and PMS7003 particle concentration sensor (+1k3 code)
+  //#define PMS_MODEL_PMS3003                      // Enable support of PMS3003 instead of PMS5003/PMS7003 (needs the USE_PMS5003 above)
+  //#define PMS_MODEL_PMS5003T                     // Enable support for PMSx003T models that report temperature and humidity (needs the USE_PMS5003 above)
+#define USE_NOVA_SDS                             // Add support for SDS011 and SDS021 particle concentration sensor (+0k7 code)
+#define USE_HPMA                                 // Add support for Honeywell HPMA115S0 particle concentration sensor
+#define USE_SCD30                                // [I2cDriver29] Enable Sensiron SCd30 CO2 sensor (I2C address 0x61) (+3k3 code)
+#define USE_SCD40                                // [I2cDriver62] Enable Sensiron SCd40 CO2 sensor (I2C address 0x62) (+3k5 code)
+#define USE_SGP30                                // [I2cDriver18] Enable SGP30 sensor (I2C address 0x58) (+1k1 code)
+#define USE_SGP40                                // [I2cDriver69] Enable SGP40 sensor (I2C address 0x59) (+1k4 code)
+
+#define USE_SR04                                 // Add support for HC-SR04 ultrasonic devices (+1k code)
+
+#define USE_IR_REMOTE                            // Send IR remote commands using library IRremoteESP8266 and ArduinoJson (+4k code, 0k3 mem, 48 iram)
+  #define USE_IR_RECEIVE                         // Support for IR receiver (+5k5 code, 264 iram)
 
 #define USE_SERIAL_BRIDGE                        // Add support for software Serial Bridge (+2k code)
 #undef USE_ARMTRONIX_DIMMERS                    // Disable support for Armtronix Dimmers (+1k4 code)
@@ -617,7 +645,6 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 #undef USE_SONOFF_SC                            // Disable support for Sonoff Sc (+1k1 code)
 #undef USE_SONOFF_IFAN                          // Disable support for Sonoff iFan02 and iFan03 (+2k code)
 //#undef USE_ARILUX_RF                            // Disable support for Arilux RF remote controller (+0k8 code, 252 iram (non 2.3.0))
-#define USE_DEEPSLEEP                            // Add support for deepsleep (+1k code)
 #undef USE_EXS_DIMMER                           // Disable support for EX-Store WiFi Dimmer
 //#define USE_HOTPLUG                              // Add support for sensor HotPlug
 //#undef USE_DEVICE_GROUPS                        // Disable support for device groups (+5k6 code)
@@ -708,21 +735,6 @@ ooooo     ooo ooooo      ooo oooooooooo.   oooooooooooo oooooooooooo ooooo ooooo
 //#define USE_RC522                              // Add support for MFRC522 13.56Mhz Rfid reader (+6k code)
 //#define USE_MCP2515                            // Add support for can bus using MCP2515 (+7k code)
 //#define USE_CANSNIFFER                         // Add support for can bus sniffer using MCP2515 (+5k code)
-
-#define USE_MHZ19                                // Add support for MH-Z19 CO2 sensor (+2k code)
-#define USE_SENSEAIR                             // Add support for SenseAir K30, K70 and S8 CO2 sensor (+2k3 code)
-#ifndef CO2_LOW
-  #define CO2_LOW              800               // Below this CO2 value show green light (needs PWM or WS2812 RG(B) led and enable with SetOption18 1)
-#endif
-#ifndef CO2_HIGH
-  #define CO2_HIGH             1200              // Above this CO2 value show red light (needs PWM or WS2812 RG(B) led and enable with SetOption18 1)
-#endif
-#define USE_PMS5003                              // Add support for PMS5003 and PMS7003 particle concentration sensor (+1k3 code)
-  //#define PMS_MODEL_PMS3003                      // Enable support of PMS3003 instead of PMS5003/PMS7003 (needs the USE_PMS5003 above)
-  //#define PMS_MODEL_PMS5003T                     // Enable support for PMSx003T models that report temperature and humidity (needs the USE_PMS5003 above)
-#define USE_NOVA_SDS                             // Add support for SDS011 and SDS021 particle concentration sensor (+0k7 code)
-#define USE_HPMA                                 // Add support for Honeywell HPMA115S0 particle concentration sensor
-#define USE_SR04                                 // Add support for HC-SR04 ultrasonic devices (+1k code)
 //#define USE_ME007                                // Add support for ME007 ultrasonic devices (+1k5 code)
 //#define USE_DYP                                  // Add support for DYP ME-007 ultrasonic distance sensor, serial port version (+0k5 code)
 //#define USE_AZ7798                               // Add support for AZ-Instrument 7798 CO2 datalogger
