@@ -4502,6 +4502,11 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 #undef FRIENDLY_NAME
 #define FRIENDLY_NAME "GoGoTasmotaCore"
 
+// Hostname and Wi-Fi AP name (softAP uses the hostname): gogo-XXXXXX (last 6 MAC hex chars).
+// MQTT topic stays tasmota_%06X (PROJECT/MQTT_TOPIC unchanged) so existing Logo topics keep working.
+#undef WIFI_DEFAULT_HOSTNAME
+#define WIFI_DEFAULT_HOSTNAME  "gogo-%06X"
+
 #define USER_TEMPLATE "{\"NAME\":\"GoGo Tasmota\",\"GPIO\":[1,1,608,1,1,1,1,1,640,32,1,0,0,0,0,0,0,0,0,0,3232,3200],\"FLAG\":0,\"BASE\":1}"
 #undef MODULE
 #define MODULE USER_MODULE
