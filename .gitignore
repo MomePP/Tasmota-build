@@ -62,3 +62,10 @@ lib/libesp32/berry/berry
 ## Python virtual environments for Platformio ##
 venv
 .venv
+
+## Qemu test folder
+tasmota-qemu
+
+# Local ESP-IDF build files, not tracked
+/sdkconfig.defaults
+/CMakeLists.txt

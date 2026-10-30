@@ -1,824 +1,819 @@
+#!/usr/bin/env python3
+"""
+LVGL -> Berry binding generator (phase 2 of the build pipeline).
+
+This script turns the *normalized* LVGL headers produced by ``preprocessor.py``
+into the C and Berry sources that implement the Berry binding.
+
+Inputs (produced by ``preprocessor.py``, see ``gen.sh``)
+    mapping/lv_funcs.h   one cleaned C function prototype per line
+    mapping/lv_enum.h    enum values, integer constants, symbols, ...
+
+Outputs (written to ``generate/``)
+    be_lv_c_mapping.h        C function dispatch tables + widget constructors
+    be_lv_classes.h          extern declarations for widget constructors/classes
+    be_lvgl_widgets_lib.c    solidified Berry class/widget definitions
+    be_lvgl_module.c         the ``lv`` module (global functions + constants)
+    LVGL_API_Reference.md    human readable API reference (Markdown)
+
+High level flow (see ``main()``)
+    1. ``parse_functions()``  reads ``lv_funcs.h`` and classifies every function
+       either as a method of an ``lv`` class/widget or as a global ``lv.*``
+       function.
+    2. ``parse_constants()``  reads ``lv_enum.h`` into an ordered list of
+       module constants.
+    3. The four ``generate_*()`` functions emit the output files from that model.
+
+Run it from the ``tools/`` directory (all paths are relative)::
+
+    python3 convert.py
+
+The only diagnostics printed to stderr are the list of callback types that were
+encountered and the C types that could not be mapped (useful when porting to a
+new LVGL version).
+
+
+Flash size optimizations (LVGL 9.6.0)
+=====================================
+
+The generated tables are compacted in three independent ways. None of them
+changes what is visible from Berry: every constant and method that existed
+before is still reachable by name with the same value / C function / Berry
+signature. Sizes below were measured on ESP32 (xtensa-esp32-elf-gcc -Os) with
+all widgets enabled, they are given as orders of magnitude.
+
+The Python generator and the C runtime (``src/lv_berry.c``, ``src/lv_berry.h``)
+share layouts and constants that MUST stay in sync. Each pair is marked with a
+"must match" comment on both sides:
+
+    Python (this file)              C (src/lv_berry.h / lv_berry.c)
+    ------------------------------  ---------------------------------
+    CONST_GROUP_MAX_PREFIX_LEN      LV_CONST_GROUP_PREFIX_MAX
+    METHOD_SIG_BITS                 LV_METHOD_SIG_BITS
+    METHOD_VERBS (order)            lv_method_verbs[] (emitted from METHOD_VERBS)
+    STYLE_KINDS                     LV_SKIND_*
+    SPROP_OBJ_SET/GET, STYLE_SET    LV_SPROP_*
+    STYLE_TYPES_MAX (5 bits)        LV_SPROP_INFO() and `info & 0x1F`
+
+
+1. `lv` module constants grouped by prefix  (generate/be_lvgl_module.c)
+-----------------------------------------------------------------------
+
+Before: one flat sorted ``lv0_constants[]`` of ``be_const_member_t`` (8 bytes
+name pointer + value) with full names. 829 constants = ~22.6 KB.
+
+Now: constants are grouped by the token before their first ``_`` and stored
+without it (``STYLE_BG_COLOR`` -> ``"BG_COLOR"`` in group ``STYLE``):
+
+    lv0_constants[]              constants that can't be grouped (full name)
+    lv0_constants_<PREFIX>[]     one sorted table per group
+    lv0_constants_groups[]       sorted index { prefix, table, size }
+
+Result: ~17.7 KB for the same 829 constants (~4.9 KB saved, +176 B code).
+
+``group_constants()`` keeps a constant in the main table when:
+    - it has no ``_``, or its prefix is longer than CONST_GROUP_MAX_PREFIX_LEN
+    - the remainder does not start with a letter (ex: ``OPA_0``). The runtime
+      ``be_map_bin_search()`` skips a leading non-letter as a type marker, so
+      ``"0"`` would never be found
+    - its value marker is ``>`` (ctype function), not handled by the group
+      lookup. Supported markers: int, ``$`` string, ``&`` comptr, ``@`` native
+    - the whole group would not save bytes (group entry + prefix string cost)
+
+Runtime: ``lv0_member()`` first searches ``lv0_constants[]`` (standard
+``be_const_module_member()``), then ``lv0_member_grouped()``: split at the
+first ``_``, binary search the prefix, then the rest inside the group.
+
+``lv._constants()`` (``lv0_constants_as_hash()``) walks both the main table
+and all groups, rebuilding full names. It is used by ``tools/lv_export_const.be``
+running on the device to regenerate ``lv_haspmota/src/embedded/lv_1_constants.be``
+with numerical values (values like ``LV_PART_ITEMS`` only exist once compiled,
+which is why this is done on the device and not at build time).
+
+Related: ``ENUM_EXCLUDE_PREFIXES`` in ``lvgl_config.py`` removes rarely used
+constants (``LV_DRAW_TASK_*``, ``LV_FS_*``, ``LV_LOG_LEVEL_*``, ...). Note that
+``preprocessor.py`` also applies it to ``LV_EXPORT_CONST_INT()`` constants.
+
+
+2. Compact class method tables  (generate/be_lv_c_mapping.h)
+-----------------------------------------------------------
+
+Before: ``be_ntv_func_def_t`` = 16 bytes per method (name, func, return type,
+arg type pointers) and full names. 1401 methods = ~46 KB with all widgets.
+
+Now (``lv_ntv_method_t``, 8 bytes)::
+
+    { func, uint16 name offset, uint16 LV_MSIG(verb, sig) }
+
+    lv_method_verbs[]   verb prefixes, index = verb code (3 high bits of `sig`)
+                        "", "get_", "get_style_", "is_", "set_", "set_style_"
+    lv_method_names[]   one blob of NUL terminated names WITHOUT verb prefix
+    lv_method_sigs[]    unique (return_type, arg_type) pairs (13 low bits)
+
+- Names are split by ``method_verb()`` at the LONGEST verb prefix, so
+  ``set_style_bg_color`` is verb ``set_style_`` + ``bg_color``, and
+  ``set_style_bg_color``, ``get_style_bg_color`` and ``lv_style.set_bg_color``
+  all share the same ``"bg_color"`` bytes.
+- ``build_name_blob()`` also reuses the tail of a longer name (``"color"``
+  points inside ``"bg_color"``). Blob must stay < 64 KB (uint16 offset).
+- Only 264 distinct signatures exist, must stay < 8192 (13 bits).
+- Entries of a class are sorted by ``(verb code, name)``. ``lv_method_find()``
+  in ``lv_berry.c`` takes the longest verb prefix of the requested name and
+  binary searches with the SAME order. If you add a verb, keep METHOD_VERBS
+  sorted and remember the code is 3 bits (max 8 verbs).
+- ``lv_classes[]`` (``lv_ntv_class_def_t``) keeps the class name as first
+  field, so the class lookup still uses ``be_map_bin_search()``.
+- Each generated line has the full Berry method name in a comment.
+
+Result: compiled ``lv_berry.c`` 50.7 KB -> 30.3 KB (~20 KB saved).
+
+Caveat: the shared name blob and signature table contain the names of ALL
+widgets, also those disabled with ``BE_LV_WIDGET_*`` (a few hundred bytes).
+
+
+3. Generic style accessors  (STYLE_GENERIC_ACCESSORS in lvgl_config.py)
+------------------------------------------------------------------------
+
+``obj.set_style_<p>(value, selector)``, ``obj.get_style_<p>(part)`` and
+``style.set_<p>(value)`` are not stored as individual method entries. They are
+resolved at runtime from:
+
+    lv_style_types[]    { Berry value arg type, Berry return type, C kind }
+    lv_style_props[]    { uint16 name offset in lv_method_names,
+                          uint8 LV_STYLE_* id,
+                          uint8 LV_SPROP_INFO(type index, accessor flags) }
+                        sorted by name (without verb)
+
+- ``parse_style_gen()`` reads LVGL's OWN generated sources (paths in
+  ``STYLE_GEN_SOURCES``): ``lv_obj_style_gen.c``, ``lv_obj_style_internal_gen.h``
+  and ``lv_style_gen.c``. A property is handled generically only if its LVGL
+  function body matches the standard generated pattern exactly (check object,
+  build ``lv_style_value_t`` from ``.num``/``.ptr``/``.color``, call the generic
+  API with ``LV_STYLE_<NAME>``). This guarantees the generic call is strictly
+  equivalent. If LVGL changes the pattern, functions simply stay explicit.
+- ``split_style_methods()`` also requires the standard Berry signature shape
+  (``(lv.obj)<value>i`` / ``(lv.obj)i`` / ``(lv.style)<value>``), then removes
+  those entries from the ``obj`` and ``style`` tables. LVGL 8 aliases
+  (``set_style_img_opa``...) are included, since they resolve to the C function.
+- Stay explicit (by design): ``text_font`` (setter checks value != NULL), the
+  ``*_filtered`` getters, ``pad_all``, ``margin_*``, ``size``,
+  ``get_style_space_*``, and properties of signed 8/16 bit types.
+- C kinds (STYLE_KINDS / LV_SKIND_*): num (int32/enum), u8 (ex: lv_opa_t),
+  u16, bool, color, ptr. Small types are found by ``scan_small_typedefs()``.
+  Enums are 4 bytes on ESP32 (no -fshort-enums), so they are ``num``.
+
+Runtime (``lv_berry.c``):
+- ``lv_x_member()`` searches the class method table first, then for
+  ``lv_obj`` and ``lv_style`` only, ``lv_style_member()``: strip
+  ``set_style_``/``get_style_``/``set_``, binary search ``lv_style_props``,
+  check the accessor flag.
+- It returns a native closure ``lv_x_call_style()`` with 4 upvals (wrapper
+  func, return type, arg type, ``pk`` = prop id | kind << 8). The closure
+  inserts ``pk`` as 2nd argument (after self) and calls ``be_call_c_func()``
+  with arg types ``(lv.obj)i<value>i``, ``(lv.obj)ii`` or ``(lv.style)i<value>``,
+  so Berry argument type checking is unchanged.
+- Wrappers ``lvbe_obj_set_style_prop()``, ``lvbe_obj_get_style_prop()``,
+  ``lvbe_style_set_prop()`` call ``lv_obj_set_local_style_prop()``,
+  ``lv_obj_get_style_prop()`` and ``lv_style_set_prop()``.
+- Colors: Berry passes ``lv.color`` as 0xRRGGBB, which is the bit layout of
+  ``lv_color_t {blue, green, red}`` passed by value. ``lvbe_style_value()``
+  and the getter convert field by field. Booleans, u8 and u16 are truncated
+  exactly like LVGL's generated functions.
+- Name based lookup (``introspect.get(obj, "set_style_" + k)`` used by
+  HASPmota) works unchanged since it goes through ``member()``. Only code
+  that enumerates a class method table won't see these accessors.
+  ``LVGL_API_Reference.md`` still documents them.
+
+Result: 132 properties covering 384 former method entries. Tables ~1.9 KB
+smaller (code +787 B), and 358 LVGL style functions are no longer referenced
+by the mapping: ~236 of them (~4 KB) are not used elsewhere and are removed by
+the linker. Total ~6 KB. Set ``STYLE_GENERIC_ACCESSORS = False`` to go back to
+explicit entries.
+
+
+Checking after changes or an LVGL upgrade
+-----------------------------------------
+
+- ``./gen.sh`` must run without "Skipping", "Unhandled" or "mapping not used".
+- Compare with the previous commit that every method/constant still resolves
+  to the same function/value and signature. The verification used for the
+  9.6.0 work simulated in Python the C lookups (``lv_method_find()``,
+  ``lv_style_member()``, ``lv0_member_grouped()``) on the generated tables of
+  ``HEAD`` and of the working tree, and checked sort order, missing names and
+  unknown names returning nothing.
+- Compile ``src/lv_berry.c`` with ``xtensa-esp32-elf-gcc`` and all
+  ``-DBE_LV_WIDGET_*`` to compare sizes (``xtensa-esp32-elf-size -A``).
+- On a device, test at least ``set_style_bg_color``/``get_style_bg_color``,
+  ``style.set_text_color``, a bool and a u8 property (``set_style_bg_opa``),
+  and ``lv.STYLE_BG_COLOR``, ``lv.SYMBOL_OK``, ``lv.OPA_0``.
+"""
+
 import re
 import sys
-
-lv_widgets_file = "../mapping/lv_funcs.h"
-lv_module_file = "../mapping/lv_enum.h"
-
-out_prefix = "../generate/"
-lvgl_prefix = "../generate/"
-doc_prefix = "../generate/"
-
-be_lv_defines = "be_lv_defines.h"
-be_lv_c_mapping = "be_lv_c_mapping.h"
-be_lv_widgets_libs = "be_lvgl_widgets_lib.c"
-be_lv_lvgl_module = "be_lvgl_module.c"
-be_lv_lvgl_doc = "LVGL_API_Reference.md"
+import argparse
+from pathlib import Path
 
 
-lv = {}
-lv0 = []        # function in lvlg module
-lv_module = []
-lv_cb_types = ['lv_group_focus_cb', 'lv_event_cb', 'lv_timer_cb',
-               'lv_constructor_cb',                 # 'constructor_cb', addition to LVGL8, also works for 'destructor_cb'
-               ]
-# list of callback types that will need each a separate C callback
+# ======================================================================
+# Configuration
+# ----------------------------------------------------------------------
+# Everything in this section is declarative data that typically needs a
+# small adjustment when moving to a new LVGL version. No parsing or code
+# generation logic lives here.
+# ======================================================================
 
-# For LVGL8, need to add synthetic lv_style, lv_font, lv_color, lv_theme
-lv['style'] = []
-lv['font'] = []
-lv['color'] = []
-lv['theme'] = []
+# All version-sensitive declarative data lives in ``lvgl_config.py`` (the single
+# place to edit when porting to a new LVGL version). Only generation logic and
+# the (version-independent) be_mapping encoding vocabulary remain in this file.
+from lvgl_config import (
+    COMPRESS_LV_TYPE,
+    LV_WIDGETS, LV_WIDGETS_NO_CLASS, LV_PREFIX,
+    LV_WIDGET_INHERITANCE, LV_WIDGET_CUSTOM_PTR,
+    SYNONYM_FUNCTIONS, SYNTHETIC_CLASSES,
+    RETURN_TYPES, SKIPPING_TYPES, GENERIC_CALLBACK_TYPES, CALLBACKS_SEEN_SEED,
+    STYLE_GENERIC_ACCESSORS, STYLE_GEN_SOURCES,
+)
+from lvgl_config import LV_SRC_PREFIX as LV_SRC_INCLUDE_DIR
 
-# standard widgets
-lv_widgets = ['obj',
-              'arc', 'bar', 'button', 'buttonmatrix', 'canvas', 'checkbox',
-              'dropdown', 'image', 'label', 'line', 'roller', 'slider',
-              'switch', 'table', 'textarea',
-              # added in LVGL 9
-              'spangroup', 'span',
-              'scale_section', 'scale',   # 'scale_section' needs to be before 'scale' to capture more selective first
-              'arclabel',       # 9.5.0
-              ]
-lv_widgets_no_class = ['span', 'scale_section']      # widgets that don't have a lv_obj class
-# extra widgets
-lv_widgets = lv_widgets + [ 'chart', 'imagebutton', 'led', 'msgbox', 'spinbox', 'spinner', 'keyboard', 'tabview', 'tileview' , 'list',
-                            'animimg', 'calendar',
-                            'menu_page', 'menu_cont', 'menu_section', 'menu_separator', 'menu_sidebar_cont',
-                            'menu_main_cont', 'menu_sidebar_header', 'menu_main_header_cont', 'menu']
-
-# add qrcode
-lv_widgets = lv_widgets + [ 'qrcode' ]
-
-# adding ad-hoc colorwheel from LVGL8 to LVGL9
-lv_widgets = lv_widgets + [ 'colorwheel' ]
-
-lv_prefix = ['group', 'style', 'indev', 'display', 'timer', 'anim', 'event', 'span'] + lv_widgets
-
-# define here widget inheritance because it's hard to deduce from source
-lv_widget_inheritance = {
-  "animimage": "image",
-  "calendar": "buttonmatrix",
-  "keyboard": "buttonmatrix",
-  "list_button": "button",
-  "list_text": "label",
-  "spinbox": "textarea",
-  "spinner": "arc",             # lv_spinner is a subclass of lv_arc
-  "canvas": "image",
-  "roller_label": "label",
-  "animimg": "image",
-  "span": None,
-}
-
-# contains any custom attribute we need to add to a widget
-lv_widget_custom_ptr = {
-  # "spinner": {
-  #   "_arc_anim_start_angle": "comptr(&arc_anim_start_angle)",
-  #   "_arc_anim_end_angle": "comptr(&arc_anim_end_angle)",
-  # }
-}
-
-
-compress_lv_type = True     # if True, convert `lv.lv_<type>` to `lv.<type>` to reduce the size of mapping
-
-class lvgl_function:
-  def __init__(self, c_func_name, c_ret_type, c_argc, c_args_doc_list, orig_func_name, be_name):
-    # change "lv.lv_" into "lv."
-    c_args_doc = ', '.join(c_args_doc_list)
-    if compress_lv_type:
-      c_argc = re.sub(r"lv\.lv_", "lv.", c_argc)
-      c_args_doc = re.sub(r"lv\.lv_", "lv.", c_args_doc)
-    self.c_args_doc = c_args_doc
-
-    self.c_func_name = c_func_name
-    self.orig_func_name = orig_func_name
-    self.be_name = be_name
-    if c_ret_type == '.':   c_ret_type = 'c'        # if return type is '.', return a comptr
-    self.c_argc = c_argc
-    if len(c_ret_type) > 1:
-      if compress_lv_type:
-        c_ret_type = "lv." + re.sub(r"^lv_", "", c_ret_type)
-      else:
-        c_ret_type = "lv." + c_ret_type
-    self.c_ret_type = c_ret_type
-    self.c_ret_type_doc = type_mapper.return_type_to_doc(c_ret_type)
-
-  # return a key/value pair: be_name, C string for this method or function
-  def add_C_line_to_map(self, map):
-    # if c_ret_type is an object, prefix with `lv.`
-    be_ret_type = self.c_ret_type
-
-    map[self.be_name] = f"  {{ \"{self.be_name}\", {{ (const void*) &{self.orig_func_name}, \"{be_ret_type}\", \"{self.c_argc}\" }} }},"
-
-# enter some synonyms so that names in LVGL 8 are mapped to their LVGL 9 equivalent
-synonym_functions = {
-  # functions
-  "scr_act": "screen_active",
-  "set_zoom": "set_scale",
-  "get_zoom": "get_scale",
-  "set_angle": "set_rotation",
-  "get_angle": "get_rotation",
-  "clear_flag": "remove_flag",
-  "clear_state": "remove_state",
-  "set_style_img_opa": "set_style_image_opa",
-  "set_style_img_recolor": "set_style_image_recolor",
-  "set_style_img_recolor_opa": "set_style_image_recolor_opa",
-  "set_bg_img_opa": "set_bg_image_opa",
-  "set_bg_img_recolor": "set_bg_image_recolor",
-  "set_bg_img_recolor_opa": "set_bg_image_recolor_opa",
-  "set_bg_img_src": "set_bg_image_src",
-  "set_bg_img_tiled": "set_bg_image_tiled",
-
-  "del": "delete",
-  "del_async": "delete_async",
-  "clear_flag": "remove_flag",
-  "clear_state": "remove_state",
-
-  "set_disp": "set_display",
-  "get_act": "active",
-  "scr_act": "screen_active",
-  "scr_load": "screen_load",
-  "remove": "delete",
-  "set_default": "set_default",
-  "get_default": "get_default",
-  "get_next": "get_next",
-  "set_rotation": "set_rotation",
-  "get_hor_res": "get_horizontal_resolution",
-  "get_ver_res": "get_vertical_resolution",
-  "get_physical_hor_res": "get_physical_horizontal_resolution",
-  "get_physical_ver_res": "get_physical_vertical_resolution",
-  "get_offset_x": "get_offset_x",
-  "get_offset_y": "get_offset_y",
-  "get_rotation": "get_rotation",
-  "get_dpi": "get_dpi",
-  "get_antialiasing": "get_antialiasing",
-  "flush_ready": "flush_ready",
-  "flush_is_last": "flush_is_last",
-  "get_scr_act": "get_screen_active",
-  "get_scr_prev": "get_screen_prev",
-  "load_scr": "lv_screen_load",
-  "get_layer_top": "get_layer_top",
-  "get_layer_sys": "get_layer_sys",
-  "send_event": "send_event",
-  "set_theme": "set_theme",
-  "get_theme": "get_theme",
-  "get_inactive_time": "get_inactive_time",
-  "trig_activity": "trigger_activity",
-  "enable_invalidation": "enable_invalidation",
-  "is_invalidation_enabled": "is_invalidation_enabled",
-
-  "del_all": "delete_all",
-  "set_ready_cb": "set_completed_cb",
-
-  "get_size": "get_size",
-  "get_width": "get_width",
-
-  "set_btn_text": "set_button_text",
-  "_btn_text": "get_button_text",
-  "add_btn": "add_button",
-
-  "get_tab_btns": "get_tab_bar",
-  "get_tab_act": "get_tab_active",
-  "set_act": "set_active",
-
-  "get_tile_act": "get_tile_active",
-  "set_tile_id": "set_tile_by_index",
-
-  "set_visible_row_cnt": "set_visible_row_count",
-  "get_option_cnt": "get_option_count",
-
-  "set_col_cnt": "set_column_count",
-  "set_row_cnt": "set_row_count",
-  "get_col_cnt": "get_column_count",
-  "get_row_cnt": "get_row_count",
-  "set_col_width": "set_column_width",
-  "get_col_width": "get_column_width",
-
-  "get_option_cnt": "get_option_count",
-
-  "get_child_cnt": "get_child_count",
-  "get_disp": "get_display",
-  "delete_anim_ready_cb": "delete_anim_completed_cb",
-
-  "get_style_anim_time": "get_style_anim_duration",
-  "get_style_img_opa": "get_style_image_opa",
-  "get_style_img_recolor": "get_style_image_recolor",
-  "get_style_img_recolor_filtered": "get_style_image_recolor_filtered",
-  "get_style_img_recolor_opa": "get_style_image_recolor_opa",
-  "get_style_shadow_ofs_x": "get_style_shadow_offset_x",
-  "get_style_shadow_ofs_y": "get_style_shadow_offset_y",
-  "get_style_transform_angle": "get_style_transform_rotation",
-
-  "set_style_anim_time": "set_style_anim_duration",
-  "set_style_img_opa": "set_style_image_opa",
-  "set_style_img_recolor": "set_style_image_recolor",
-  "set_style_img_recolor_opa": "set_style_image_recolor_opa",
-  "set_style_shadow_ofs_x": "set_style_shadow_offset_x",
-  "set_style_shadow_ofs_y": "set_style_shadow_offset_y",
-  "set_style_transform_zoom": "set_style_transform_scale",
-  "set_style_transform_angle": "set_style_transform_rotation",
-
-  "set_anim_time": "set_anim_duration",
-  "set_img_opa": "set_image_opa",
-  "set_img_recolor": "set_image_recolor",
-  "set_img_recolor_opa": "set_image_recolor_opa",
-  "set_shadow_ofs_x": "set_shadow_offset_x",
-  "set_shadow_ofs_y": "set_shadow_offset_y",
-  "set_transform_angle": "set_transform_rotation",
-  "set_transform_zoom": "set_transform_scale",
-
-  "scr_load_anim": "screen_load_anim",
-
-  "set_range": "set_axis_range",
-}
 
 def get_synonyms(name):
-  return [k for k,v in synonym_functions.items() if v == name]
+    """Return the list of legacy names that are aliases of ``name``."""
+    return [k for k, v in SYNONYM_FUNCTIONS.items() if v == name]
 
-# The following class takes a C++ type and returns all information about Berry type
-class type_mapper_class:
-  # detect a function definition all
-  # Ex: 'void lv_obj_set_parent(lv_obj_t * obj, lv_obj_t * parent);'
-  # Group 1: 'void'
-  # Group 2: 'lv_obj_set_parent'
-  # Group 3: 'lv_obj_t * obj, lv_obj_t * parent'
-  parse_func_regex = re.compile(r"(.*?)\s(\w+)\((.*?)\)")
-  
-  # parse call argument type
-  # Ex: 'const lv_obj_t * parent' -> 'const ', 'lv_obj_t', ' * ', 'parent'
-  # Ex: 'bool auto_fit' -> '', 'bool', ' ', 'auto_fit'
-  parse_arg_regex = re.compile(r"(\w+\s+)?(\w+)([\*\s]+)(\w+)(\[\])?")
 
-  # the following types are skipped without warning, because it would be too complex to adapt (so we don't map any function using or returning these types)
-  skipping_type = [
-    "bvm *",                      # Berry
-    "lv_global_t *",              # reading globals is not useful in Berry
-    # "lv_event_dsc_t *",           # internal implementation, use functions instead
-    "lv_draw_task_t *",           # skip low-level tasks for now
-    "lv_draw_buf_t *",            # low-level
-    "lv_calendar_date_t *",       # skip calendar for now
-    "lv_vector_dsc_t",            # see later if we need this
-    "lv_point_precise_t",         # see later if we need this
-    "void **",                    # edge case of lv_animimg_get_src()
-    "va_list",
-    "lv_matrix_t *",
-    "lv_event_list_t *",
-    "lv_style_value_t *",
-    "lv_fpoint_t *",
-    "lv_draw_fill_dsc_t *",
-    "lv_draw_mask_rect_dsc_t *",
-    "lv_draw_triangle_dsc_t *",
-    "lv_font_glyph_dsc_t *",
-    "lv_buttonmatrix_ctrl_t []",
-    "lv_group_edge_cb_t",
-    "lv_obj_tree_walk_cb_t",
-    "lv_display_flush_cb_t",
-    "lv_display_flush_wait_cb_t",
-    "lv_draw_glyph_dsc_t *",
-    "lv_draw_unit_t *",
-    "lv_draw_border_dsc_t *",
-    "lv_draw_box_shadow_dsc_t *",
-    "lv_anim_deleted_cb_t",
-    "lv_timer_handler_resume_cb_t",
-    "lv_theme_apply_cb_t",
-    "lv_screen_create_cb_t",    # new in 9.4.0
-    "lv_color32_t *",
-    "lv_color16_t *",
-    "lv_color_filter_cb_t",
-    "lv_style_prop_t []",
-    "lv_calendar_date_t []",
-    "lv_indev_read_cb_t",
-    "lv_vector_path_t *",
-    "lv_vector_path_quality_t",
-    "lv_color16_t",
-    "uint8_t *",
-    "lv_obj_t **",
-    # new in 9.5.0
-    "lv_draw_dsc_base_t *",
-    "lv_draw_blur_dsc_t *",
-    "lv_indev_key_remap_cb_t",
-  ]
+# ======================================================================
+# Encoding vocabulary
+# ----------------------------------------------------------------------
+# Single source of truth for the compact codes understood by the Berry
+# ``be_mapping`` runtime. There are two independent vocabularies; keep
+# each in sync with its authoritative C reader.
+# ======================================================================
 
-  return_types = {
-    # "void": "",           # treated in code directly, it doesn't work well with regex since there is no variable name
-    "bool": "b",
-    "int": "i",
-    "uint8_t": "i",
-    "uint16_t": "i",
-    "int16_t": "i",
-    "uint32_t": "i",
-    "int32_t": "i",
-    "void *": ".",
-    # "const void *": ".",
-    "char *": "c",
-    # "uint8_t *": "c",
-    "size_t": "i",
-    # "const char *": "s",
-    "retchar *": "s",
-    "constchar *": "s",       # special construct
-    # "lv_obj_user_data_t": "i",
-    "lv_result_t": "i",
-    # "float": "f",
+class Sig:
+    """Function-signature encoding (arguments + return types).
 
-    "lv_coord_t": "i",
-    "lv_opa_t": "i",
-    "lv_state_t": "i",
-    "lv_chart_axis_t":"i",
-    "lv_point_t":"i",
-    "lv_chart_type_t":"i",
-    # "lv_layout_t":"i",
-    "lv_color_hsv_t":"i",
-    "lv_label_long_mode_t": "i",
-    "lv_scrollbar_mode_t": "i",
-    "lv_blend_mode_t": "i",
-    "lv_grad_dir_t": "i",
-    "lv_border_side_t": "i",
-    "lv_align_t": "i",
-    "lv_keyboard_mode_t": "i",
-    "lv_indev_type_t": "i",
-    "lv_indev_mode_t": "i",
-    "lv_indev_state_t": "i",
-    # "lv_event_t": "i",
-    "lv_dir_t": "i",
-    "lv_part_t": "i",
-    "lv_base_dir_t": "i",
-    "lv_text_decor_t": "i",
-    "lv_text_align_t": "i",
-    "lv_arc_mode_t": "i",
-    "lv_bar_mode_t": "i",
-    "lv_bar_orientation_t": "i",
-    "lv_event_code_t": "i",
-    "lv_obj_flag_t": "i",
-    "lv_slider_mode_t": "i",
-    "lv_scroll_snap_t": "i",
-    "lv_style_value_t": "i",
-    # "lv_image_src_t": "i",
-    "lv_style_selector_t": "i",
-    # "lv_palette_t": "i",
-    "lv_style_prop_t": "i",
-    "lv_chart_update_mode_t": "i",
-    "lv_style_res_t": "i",
-    # LVGL 9
-    "lv_image_align_t": "i",
-    "lv_text_flag_t": "i",
-    "lv_display_rotation_t": "i",
-    "lv_color_format_t": "i",
-    "lv_value_precise_t": "i",
-    "lv_color32_t": "i",
-    "lv_scale_mode_t": "i",
-    "lv_span_overflow_t": "i",
-    "lv_span_mode_t": "i",
-    # "lv_vector_path_t *": "c",    # treat as opaque pointer
-    # "lv_vector_dsc_t *": "c",     # treat as opaque pointer
-    "lv_point_t *": "c",          # treat as opaque pointer
-    "lv_hit_test_info_t *": "c",  # treat as opaque pointer
-    "lv_screen_load_anim_t": "i",
-    "lv_display_render_mode_t": "i",
-    "lv_draw_task_type_t": "i",
-    # "lv_vector_gradient_spread_t": "i",
-    "lv_cover_res_t": "i",
-    # "lv_vector_path_quality_t": "i",
-    # "lv_vector_blend_t": "i",
-    # "lv_vector_fill_t": "i",
-    # "lv_vector_stroke_cap_t": "i",
-    # "lv_vector_stroke_join_t": "i",
-    "lv_font_kerning_t": "i",
-    "lv_menu_mode_header_t": "i",
-    "lv_menu_mode_root_back_button_t": "i",
-    "lv_point_precise_t []": "lv_point_arr",
-    "lv_obj_point_transform_flag_t": "i",
-    "lv_palette_t": "i",
+    Authoritative reader: lib/libesp32/berry_mapping/src/be_class_wrapper.c
+      - be_call_c_func()        return-type handling
+      - be_check_arg_type()     argument-string parsing
+      - be_convert_single_elt() per-argument conversion
+    """
 
-    "int32_t *": "lv_int_arr",
-    "int32_t []": "lv_int_arr",
-    "uint32_t *": "lv_int_arr",
-    "lv_color_t *": "lv_color_arr",
-    # "float *": "lv_float_arr",
-    # layouts
-    "lv_flex_align_t": "i",
-    "lv_flex_flow_t": "i",
-    "lv_grid_align_t": "i",
+    # Scalar codes (single char) -- valid as argument and/or return type
+    INT      = "i"   # be_int
+    BOOL     = "b"   # be_bool
+    STRING   = "s"   # const char *  (nil if NULL)
+    REAL     = "f"   # be_real (float) -- supported by C, not emitted today
+    COMPTR   = "c"   # comptr (generic C pointer)
+    ANY      = "."   # any value / no type check
 
-    # lv_anim
-    "lv_anim_t *": "lv_anim",
-    "lv_anim_enable_t": "i",
-    "lv_anim_exec_xcb_t": "c",
-    "lv_anim_custom_exec_cb_t": "c",
-    "lv_anim_get_value_cb_t": "c",
-    "lv_anim_path_cb_t": "c",
-    "lv_anim_completed_cb_t": "c",
-    "lv_anim_start_cb_t": "c",
-    # lv_imagebutton
-    "lv_imagebutton_state_t": "i",
-    # lv_buttonmatrix
-    "lv_buttonmatrix_ctrl_t": "i",
+    # Return-only codes
+    VOID        = ""    # no return value (nil)
+    STRING_FREE = "$"   # string then free()'d -- supported by C, not emitted today
+    BYTES       = "&"   # bytes() + implicit (size_t*) arg -- not emitted today
 
-    "lv_group_refocus_policy_t": "i",
-    "lv_roller_mode_t": "i",
-    "lv_table_cell_ctrl_t": "i",
+    # Generator-internal marker for a generic (untyped) callback return
+    CALLBACK = "C"
 
-    # "lv_calendar_chinese_t": "c",
+    # Constructor return codes ('_p' = instance var holding the pointer)
+    CTOR_NONNULL  = "+_p"   # store ptr, raise if NULL
+    CTOR_NULLABLE = "=_p"   # store ptr, allow NULL
 
-    # adding ad-hoc colorwheel from LVGL8 to LVGL9
-    "lv_colorwheel_mode_t": "i",
+    # Argument-only control codes
+    SKIP      = "-"          # ignore this argument
+    BUF_LEN   = "~"          # pass length of the previous bytes() buffer
+    VM_PTR    = "@"          # pass the Berry VM pointer (first arg only)
+    OPT_START = "["          # following arguments are optional
+    VARARG    = "[......]"   # C '...' -> up to 6 optional any-args
 
-    # arrays
-    "constchar * []": "str_arr",
-    # "char * []": "str_arr",
-    # "lv_coord_t []": "lv_coord_arr",
-    # "lv_point_t []": "lv_point_arr",
+    # Markdown rendering
+    DOC = {
+        INT: "int", BOOL: "bool", STRING: "string",
+        COMPTR: "comptr", CALLBACK: "callback", ANY: "\\<any\\>",
+    }
+    DOC_CLOSURE = "\\<closure\\>"   # typed callback argument
+    DOC_VARARG  = "[\\<any\\>]"     # C '...' argument
 
-    # ctypes objects
-    "lv_area_t *": "lv_area",
-    "lv_obj_class_t *": "lv_obj_class",
-    "lv_chart_series_t *": "lv_chart_series",
-    "lv_chart_cursor_t *": "lv_chart_cursor",
-    "lv_draw_label_dsc_t *": "lv_draw_label_dsc",
-    "lv_draw_rect_dsc_t *": "lv_draw_rect_dsc",
-    "lv_draw_line_dsc_t *": "lv_draw_line_dsc",
-    "lv_draw_arc_dsc_t *": "lv_draw_arc_dsc",
-    "lv_point_precise_t *": "lv_point_precise",
-    "lv_draw_image_dsc_t *": "lv_draw_image_dsc",
-    "lv_event_dsc_t *": "lv_event_dsc",
-    "lv_span_coords_t": "lv_span_coords",
+    @staticmethod
+    def instance_arg(cls):    # e.g. '(lv.lv_obj)'
+        return f"({cls})"
 
-    "_lv_obj_t *": "lv_obj",
-    "lv_obj_t *": "lv_obj",
-    "lv_event_t *": "lv_event",
-    "lv_color_t": "lv_color",
-    "lv_style_t *": "lv_style",
-    "lv_group_t *": "lv_group",
-    "lv_font_t *": "lv_font",
-    "lv_theme_t *": "lv_theme",
-    "lv_display_t *": "lv_display",
-    '_lv_display_t *': "lv_display",
-    "lv_indev_t *": "lv_indev",
-    "lv_point_t []": "lv_point_arr",
-    "lv_span_t *": "lv_span",
-    "lv_scale_section_t *": "lv_scale_section",  # treat as opaque pointer
-    # "lv_image_header_t *": "lv_image_header",
-    "lv_image_dsc_t *": "lv_image_dsc",
-    "lv_ts_calibration_t *": "lv_ts_calibration",
-    "lv_style_transition_dsc_t *": "lv_style_transition_dsc",
-    "lv_layer_t *": "lv_layer",               # LVGL9
-    # "_lv_draw_layer_ctx_t *": "lv_draw_layer_ctx",
-    "lv_grad_dsc_t *": "lv_grad_dsc",
-    "lv_color_filter_dsc_t *": "lv_color_filter_dsc",
-    "lv_timer_t *": "lv_timer",
-    # "_lv_timer_t *": "lv_timer",
-    # "lv_coord_t *": "lv_coord_arr",
-    # "char **": "lv_str_arr",           # treat as a simple pointer, decoding needs to be done at Berry level
-    "constchar **": "c",      # treat as a simple pointer, decoding needs to be done at Berry level
-    "void * []": "c",         # treat as a simple pointer, decoding needs to be done at Berry level
-    "constchar * *": "c",
-    # new in 9.3.0
-    # "lv_text_cmd_state_t *": "c",     # not used anymore in 9.4.0
-    "lv_font_info_t *": "lv_font_info",
-    "lv_switch_orientation_t": "i",
-    "lv_slider_orientation_t": "i",
-    "lv_draw_letter_dsc_t *": "lv_draw_letter_dsc",
-    # new in 9.4.0
-    "lv_image_colorkey_t *": "c",
-    "lv_arclabel_dir_t": "i",
-    "lv_arclabel_text_align_t": "i",
-    "lv_anim_timeline_t *": "lv_anim_timeline_dsc",
-    # new in 9.5.0
-    # "lv_blur_quality_t": "i",
-    "lv_arclabel_overflow_t": "i",
+    @staticmethod
+    def callback_arg(cb):     # e.g. '^lv_event_cb^'
+        return f"^{cb}^"
 
-    # callbacks
-    "lv_group_focus_cb_t": "lv_group_focus_cb",
-    "lv_event_cb_t": "lv_event_cb",
-    "lv_timer_cb_t": "lv_timer_cb",
-  }
+    @staticmethod
+    def to_doc(code):
+        # multi-char class names (e.g. 'lv.obj') render as-is
+        return Sig.DOC.get(code, code)
 
-  lv_cb_types = ['lv_group_focus_cb', 'lv_event_cb', 'lv_timer_cb',
-                'lv_constructor_cb',                # 'constructor_cb', addition to LVGL8, also works for 'destructor_cb'
-                'lv_group_edge_cb',                 # new in LVGL9
-                ]
 
-  # how to transform a type used for Berry mapping into user-explicit
-  return_types_for_doc = {
-    "i": "int",
-    "b": "bool",
-    "s": "string",
-    "c": "comptr",
-    "C": "callback",
-    ".": "\\<any\\>",
-  }
+class Member:
+    """Const-member value encoding for the ``lv`` module table.
 
-  def return_type_to_doc(self, type):
-    return type_mapper_class.return_types_for_doc.get(type, type)
+    A value's first char (as found in lv_enum.h) selects the generated key
+    prefix and the coc macro used to store it.
+    Authoritative reader: lib/libesp32/berry_mapping/src/be_const_members.c
+    (be_const_member_dual switches on the key's first char: $ & @ > * /).
+    """
 
-  def __init__(self) -> None:
-    # create a map to count each time a C type is converted to Berry, and catch those that are never used
-    # also provide some stats
-    self.return_types_count = { k:0 for k in type_mapper_class.return_types.keys() }
-    self.unhandled_types = {}
+    # (value first char) -> (key prefix, coc macro, value transform)
+    STRING = ('"', "$", "be_cconst_string", lambda v: v)
+    PTR    = ('&', "&", "be_cconst_ptr",    lambda v: v)
+    NATIVE = ('@', "@", "be_cconst_ptr",    lambda v: "&" + v[1:])
+    CTYPE  = ('>', ">", "be_ctype",         lambda v: v[1:])
 
-  # convert a C return type to the string representation for the Berry parser
-  # using return_types
-  def c_convert_type(self, c_ctype, try_without_t):
-    # try name first
-    be_ret = type_mapper_class.return_types.get(c_ctype)
-    if be_ret:
-      self.return_types_count[c_ctype] += 1
-      return be_ret
-  
-    if try_without_t:
-      c_ctype_without_t = re.sub(r"^(\w+?)_t", "\\1", c_ctype)
-      # print(f">>> ctype '{c_ctype}' '{c_ctype_without_t}'")
-      be_ret = type_mapper_class.return_types.get(c_ctype_without_t)
-      if be_ret:
-        self.return_types_count[c_ctype_without_t] += 1
-        return be_ret
-    
-    return None     # fallback
-  
-  def type_is_unhandled(self, t):
-    self.unhandled_types[t] = self.unhandled_types.get(t, 0) + 1
+    _BY_MARKER = {rule[0]: rule for rule in (STRING, PTR, NATIVE, CTYPE)}
 
-  def dump_return_types_stats(self, dump_all):
-    for k in sorted(self.unhandled_types, key=self.unhandled_types.get, reverse=True):
-      print(f"> Unhandled type '{k}' ({self.unhandled_types[k]})", file=sys.stderr)
-    if dump_all:
-      for k in sorted(self.return_types_count, key=self.return_types_count.get, reverse=True):
-        print(f"# '{k}': {self.return_types_count[k]}", file=sys.stderr)
+    # markers that `lv0_member()` (lv_berry.c) can decode for grouped constants
+    GROUPABLE_MARKERS = {None, '"', '&', '@'}
 
-    else:
-      # dump only unused
-      return_types_count_filtered = [k for k,v in self.return_types_count.items() if v == 0]
-      for k in return_types_count_filtered:
-        print(f"# mapping not used '{k}'", file=sys.stderr)
+    @staticmethod
+    def marker(value):
+        """Return the value's encoding marker, or None for an int (literal or bare enum)."""
+        if value is None:
+            return None
+        return value[0] if value[0] in Member._BY_MARKER else None
 
-  def clean_c_line(self, l_raw):
-    l_raw = re.sub(r'//.*$', '', l_raw)                  # remove trailing comments
-    l_raw = re.sub(r'LV_ATTRIBUTE_FAST_MEM ', '', l_raw) # remove LV_ATTRIBUTE_FAST_MEM marker
-    l_raw = re.sub(r'\s+', ' ', l_raw)                   # replace any multi-space with a single space
-    l_raw = l_raw.strip(" \t\n\r")                      # remove leading or trailing spaces
-    l_raw = re.sub(r'static ', '', l_raw)                # remove `static` qualifier
-    l_raw = re.sub(r'inline ', '', l_raw)                # remove `inline` qualifier
-    l_raw = re.sub(r'const\s+char\s*\*', 'constchar *', l_raw)
-    l_raw = re.sub(r'^char\s*\*', 'retchar *', l_raw)    # special case for returning a char*
-    l_raw = re.sub(r'const ', '', l_raw)
-    l_raw = re.sub(r'struct ', '', l_raw)
-    return l_raw
+    @staticmethod
+    def encode(key, value, name=None):
+        """Render the ``{ "<name>", macro(value) },`` table entry for one constant.
 
-  def parse_c_line(self, l_raw):
-    g = type_mapper_class.parse_func_regex.search(l_raw)
-    if g:
-      c_return_type = g.group(1)
-      c_func_name = g.group(2)
-      c_arg_types = g.group(3)
-      return (c_return_type, c_func_name, c_arg_types)
-    else:
-      return (None, None, None)
+        ``key`` is the full constant name (used to build ``LV_<key>``), ``name``
+        is the name stored in the table, defaults to ``key`` (it is shorter when
+        the constant lives in a prefix group, see ``group_constants``)."""
+        if name is None:
+            name = key
+        if value is None:                       # bare enum, resolved by the C compiler
+            return f'    {{ "{name}", be_cconst_int(LV_{key}) }},'
+        rule = Member._BY_MARKER.get(value[0])
+        if rule is None:                        # plain int literal
+            return f'    {{ "{name}", be_cconst_int({value}) }},'
+        _, prefix, macro, transform = rule
+        return f'    {{ "{prefix}{name}", {macro}({transform(value)}) }},'
 
-  def get_widget_return_type(self, c_type):
-    c_ret = self.c_convert_type(c_type, False)
-    c_ctype_without_t = re.sub(r"_t$", "", c_type)
-    if c_ret:
-      pass      # done
-    elif c_type == "void":
-      c_ret = ""
-    elif c_ctype_without_t in type_mapper_class.lv_cb_types:
-      c_ret = "C"   # general callback, if not already captured by explicit type
-    elif c_type not in type_mapper_class.skipping_type:
-      print(f"  // Skipping unsupported return type '{c_type}'", file=sys.stderr)
-      self.type_is_unhandled(c_type)
-      c_ret = None
 
-    # print(f">>> get_widget_return_type '{c_type}' -> '{c_ret}'", file=sys.stderr)
-    return c_ret
-  
-  def get_widget_arg_type(self, c_return_type, c_func_name, c_arg_types):
-    # convert arguments
-    c_args = ""
-    c_args_doc = []
-    args_raw = [ x.strip(" \t\n\r") for x in c_arg_types.split(",") ]  # split by comma and strip
-    # print(args_raw)
-    for arg_raw in args_raw:
+# Size of one `lv_const_group_t` entry plus its alignment, used to decide if a
+# prefix group saves flash (pointer + pointer + size_t on 32 bits)
+CONST_GROUP_ENTRY_SIZE = 12
+CONST_GROUP_MAX_PREFIX_LEN = 15             # must match LV_CONST_GROUP_PREFIX_MAX in lv_berry.c
 
-      # check if `void`
-      if arg_raw == 'void':      # Special case for 'void' which can't be captured easily in regex
-        break
 
-      if arg_raw == '...':          # Special case for '...' which can't be captured easily in regex
-        # '...'
-        c_args += "[......]"  # allow 6 additional parameters by default
-        c_args_doc.append("[\\<any\\>]")
-        break
-      
-      # Ex: 'const lv_obj_t * parent' -> 'const ', 'lv_obj_t', ' * ', 'parent', ''
-      # Ex: 'bool auto_fit' -> '', 'bool', ' ', 'auto_fit', ''
-      # Ex: 'const lv_coord_t value[]' -> 'const', 'lv_coord_t', '', 'value', '[]'
-      ga = type_mapper_class.parse_arg_regex.search(arg_raw)
-      if ga:                      # parsing ok?
-        # ga.group(1) is first modifier like `const`, we don't use them
-        ga_type = ga.group(2)     # main type
-        ga_ptr = ( ga.group(3).strip(" \t\n\r") == "*" )      # (bool) is it a pointer
-        ga_2ptr = ( ga.group(3).strip(" \t\n\r") == "**" )    # (bool) is it a pointer to a pointer
-        ga_name = ga.group(4)     # main type name
-        ga_array = ga.group(5)    # is it an array `[]`
-        # print(f"raw='{arg_raw}' {ga_type=} {ga_ptr=} {ga_name=} {ga_array=}")
+def group_constants(constants):
+    """Split constants into prefix groups to save flash.
 
-        ga_full_type = ga_type    # rebuild a complete type with modifier
-        if ga_ptr:    ga_full_type += " *"
-        if ga_2ptr:   ga_full_type += " **"
-        if ga_array:  ga_full_type += " []"
+    Constants are grouped by the token before their first ``_`` (ex: ``STYLE``
+    for ``STYLE_BG_COLOR``), and stored without that prefix (``BG_COLOR``).
+    A constant stays in the main table (full name) when:
+    - it has no ``_``, or the prefix is too long
+    - the remainder does not start with a letter (the runtime binary search
+      skips a leading non-letter as a type marker, ex: ``OPA_0``)
+    - its marker is not supported by the group lookup (``>`` ctype functions)
+    - its group would not save flash
 
-        be_type = self.c_convert_type(ga_full_type, True)
-
-        if be_type == None:
-          # no match, unsupported type
-          if ga_full_type not in type_mapper_class.skipping_type:
-            self.type_is_unhandled(ga_full_type)
-          # print(f"  // Unsupported argument type '{arg_raw}'", file=sys.stderr)
-          return (None, None)
-
-        # if the type is a single letter, we just add it
-        if len(be_type) == 1 and be_type != 'C':  # callbacks are different
-          c_args += be_type
-          c_args_doc.append(type_mapper.return_type_to_doc(be_type))
+    Returns ``(main, groups)`` where ``main`` is a dict ``{key: value}`` and
+    ``groups`` is a dict ``{prefix: {stripped_name: (key, value)}}``.
+    """
+    candidates = {}
+    main = {}
+    for k, v in constants.items():
+        prefix, sep, rest = k.partition('_')
+        if (sep and 0 < len(prefix) <= CONST_GROUP_MAX_PREFIX_LEN and rest[:1].isalpha()
+                and Member.marker(v) in Member.GROUPABLE_MARKERS):
+            candidates.setdefault(prefix, {})[rest] = (k, v)
         else:
-          if be_type.endswith("_cb"):
-            if 'remove_' in c_func_name:    # if the call is to remove the cb, just treat as an 'anything' parameter
-              c_args += "."
-              c_args_doc.append("\\<any\\>")
+            main[k] = v
+    groups = {}
+    for prefix, members in candidates.items():
+        saved = (len(prefix) + 1) * len(members)            # bytes removed from names
+        cost = CONST_GROUP_ENTRY_SIZE + len(prefix) + 1     # group entry + prefix string
+        if saved > cost:
+            groups[prefix] = members
+        else:
+            for k, v in members.values():
+                main[k] = v
+    return main, groups
+
+
+# ======================================================================
+# Type mapping
+# ----------------------------------------------------------------------
+# ``TypeMapper`` is the single source of truth for turning a C type into
+# the compact single/multi-character encoding understood by the Berry
+# ``be_mapping`` runtime, and into the human readable form used in the
+# Markdown reference.
+#
+# Encoding cheat-sheet (see be_mapping.c for the authoritative reader):
+#   i  int          b  bool        s  string (const char *)
+#   c  comptr       C  callback    .  any value / void* return
+#   (lv.<class>)    instance of an lv class (argument)
+#   ^<cb_type>^     a typed callback argument
+#   lv.<class>      class instance return type
+# ======================================================================
+
+class TypeMapper:
+    # Detect a full function definition.
+    # Ex: 'void lv_obj_set_parent(lv_obj_t * obj, lv_obj_t * parent);'
+    #   Group 1: 'void'
+    #   Group 2: 'lv_obj_set_parent'
+    #   Group 3: 'lv_obj_t * obj, lv_obj_t * parent'
+    parse_func_regex = re.compile(r"(.*?)\s(\w+)\((.*?)\)")
+
+    # Parse a single call argument.
+    # Ex: 'const lv_obj_t * parent' -> 'const ', 'lv_obj_t', ' * ', 'parent'
+    # Ex: 'bool auto_fit'           -> '', 'bool', ' ', 'auto_fit'
+    parse_arg_regex = re.compile(r"(\w+\s+)?(\w+)([\*\s]+)(\w+)(\[\])?")
+
+    # Type tables and callback lists are defined centrally in lvgl_config.py
+    # (the single place to edit for a new LVGL version). They are exposed as
+    # class attributes so the rest of the class can use ``TypeMapper.<name>``.
+    skipping_type = SKIPPING_TYPES
+    return_types = RETURN_TYPES
+
+    def __init__(self):
+        # Stats: how many times each C type is converted (to spot dead entries),
+        # and which types could not be mapped at all.
+        self.return_types_count = {k: 0 for k in TypeMapper.return_types.keys()}
+        self.unhandled_types = {}
+        # Callback types encountered as *arguments*. Seeded with the types that
+        # always exist so the end-of-run report matches historical output.
+        self.callbacks_seen = list(CALLBACKS_SEEN_SEED)
+
+    def return_type_to_doc(self, type):
+        return Sig.to_doc(type)
+
+    def c_convert_type(self, c_ctype, try_without_t):
+        """Convert a C type to its Berry encoding, or ``None`` if unsupported.
+
+        If ``try_without_t`` is set, also try the type with a stripped ``_t``
+        suffix (e.g. ``lv_foo_t`` -> ``lv_foo``).
+        """
+        be_ret = TypeMapper.return_types.get(c_ctype)
+        if be_ret:
+            self.return_types_count[c_ctype] += 1
+            return be_ret
+
+        if try_without_t:
+            c_ctype_without_t = re.sub(r"^(\w+?)_t", "\\1", c_ctype)
+            be_ret = TypeMapper.return_types.get(c_ctype_without_t)
+            if be_ret:
+                self.return_types_count[c_ctype_without_t] += 1
+                return be_ret
+
+        return None     # fallback
+
+    def type_is_unhandled(self, t):
+        self.unhandled_types[t] = self.unhandled_types.get(t, 0) + 1
+
+    def dump_return_types_stats(self, dump_all):
+        for k in sorted(self.unhandled_types, key=self.unhandled_types.get, reverse=True):
+            print(f"> Unhandled type '{k}' ({self.unhandled_types[k]})", file=sys.stderr)
+        if dump_all:
+            for k in sorted(self.return_types_count, key=self.return_types_count.get, reverse=True):
+                print(f"# '{k}': {self.return_types_count[k]}", file=sys.stderr)
+        else:
+            # dump only unused
+            return_types_count_filtered = [k for k, v in self.return_types_count.items() if v == 0]
+            for k in return_types_count_filtered:
+                print(f"# mapping not used '{k}'", file=sys.stderr)
+
+    def clean_c_line(self, l_raw):
+        l_raw = re.sub(r'//.*$', '', l_raw)                  # remove trailing comments
+        l_raw = re.sub(r'LV_ATTRIBUTE_FAST_MEM ', '', l_raw) # remove LV_ATTRIBUTE_FAST_MEM marker
+        l_raw = re.sub(r'\s+', ' ', l_raw)                   # replace any multi-space with a single space
+        l_raw = l_raw.strip(" \t\n\r")                      # remove leading or trailing spaces
+        l_raw = re.sub(r'static ', '', l_raw)                # remove `static` qualifier
+        l_raw = re.sub(r'inline ', '', l_raw)                # remove `inline` qualifier
+        l_raw = re.sub(r'const\s+char\s*\*', 'constchar *', l_raw)
+        l_raw = re.sub(r'^char\s*\*', 'retchar *', l_raw)    # special case for returning a char*
+        l_raw = re.sub(r'const ', '', l_raw)
+        l_raw = re.sub(r'struct ', '', l_raw)
+        return l_raw
+
+    def parse_c_line(self, l_raw):
+        g = TypeMapper.parse_func_regex.search(l_raw)
+        if g:
+            c_return_type = g.group(1)
+            c_func_name = g.group(2)
+            c_arg_types = g.group(3)
+            return (c_return_type, c_func_name, c_arg_types)
+        else:
+            return (None, None, None)
+
+    def get_widget_return_type(self, c_type):
+        c_ret = self.c_convert_type(c_type, False)
+        c_ctype_without_t = re.sub(r"_t$", "", c_type)
+        if c_ret:
+            pass      # done
+        elif c_type == "void":
+            c_ret = Sig.VOID
+        elif c_ctype_without_t in GENERIC_CALLBACK_TYPES:
+            c_ret = Sig.CALLBACK   # general callback, if not already captured by explicit type
+        elif c_type not in TypeMapper.skipping_type:
+            print(f"  // Skipping unsupported return type '{c_type}'", file=sys.stderr)
+            self.type_is_unhandled(c_type)
+            c_ret = None
+
+        return c_ret
+
+    def get_widget_arg_type(self, c_return_type, c_func_name, c_arg_types):
+        """Convert the comma-separated C argument list to its Berry encoding.
+
+        Returns ``(c_args, c_args_doc)`` or ``(None, None)`` if any argument
+        type is unsupported (in which case the whole function is dropped).
+        """
+        c_args = ""
+        c_args_doc = []
+        args_raw = [x.strip(" \t\n\r") for x in c_arg_types.split(",")]  # split by comma and strip
+        for arg_raw in args_raw:
+
+            # check if `void`
+            if arg_raw == 'void':      # Special case for 'void' which can't be captured easily in regex
+                break
+
+            if arg_raw == '...':          # Special case for '...' which can't be captured easily in regex
+                # '...'
+                c_args += Sig.VARARG  # allow 6 additional parameters by default
+                c_args_doc.append(Sig.DOC_VARARG)
+                break
+
+            # Ex: 'const lv_obj_t * parent'   -> 'const ', 'lv_obj_t', ' * ', 'parent', ''
+            # Ex: 'bool auto_fit'             -> '', 'bool', ' ', 'auto_fit', ''
+            # Ex: 'const lv_coord_t value[]'  -> 'const', 'lv_coord_t', '', 'value', '[]'
+            ga = TypeMapper.parse_arg_regex.search(arg_raw)
+            if ga:                      # parsing ok?
+                # ga.group(1) is first modifier like `const`, we don't use them
+                ga_type = ga.group(2)     # main type
+                ga_ptr = (ga.group(3).strip(" \t\n\r") == "*")      # (bool) is it a pointer
+                ga_2ptr = (ga.group(3).strip(" \t\n\r") == "**")    # (bool) is it a pointer to a pointer
+                ga_name = ga.group(4)     # main type name
+                ga_array = ga.group(5)    # is it an array `[]`
+
+                ga_full_type = ga_type    # rebuild a complete type with modifier
+                if ga_ptr:    ga_full_type += " *"
+                if ga_2ptr:   ga_full_type += " **"
+                if ga_array:  ga_full_type += " []"
+
+                be_type = self.c_convert_type(ga_full_type, True)
+
+                if be_type == None:
+                    # no match, unsupported type
+                    if ga_full_type not in TypeMapper.skipping_type:
+                        self.type_is_unhandled(ga_full_type)
+                    return (None, None)
+
+                # if the type is a single letter, we just add it
+                if len(be_type) == 1 and be_type != Sig.CALLBACK:  # callbacks are different
+                    c_args += be_type
+                    c_args_doc.append(self.return_type_to_doc(be_type))
+                else:
+                    if be_type.endswith("_cb"):
+                        if 'remove_' in c_func_name:    # if the call is to remove the cb, just treat as an 'anything' parameter
+                            c_args += Sig.ANY
+                            c_args_doc.append(Sig.to_doc(Sig.ANY))
+                        else:
+                            # it's a callback type, we encode it differently
+                            if be_type not in self.callbacks_seen:
+                                self.callbacks_seen.append(be_type)
+                            c_args += Sig.callback_arg(be_type)
+                            c_args_doc.append(Sig.DOC_CLOSURE)
+                    else:
+                        # we have a high-level type that we treat as a class name, enclose in parenthesis
+                        c_args += Sig.instance_arg("lv." + be_type)
+                        c_args_doc.append("lv." + be_type)
             else:
-              # it's a callback type, we encode it differently
-              if be_type not in lv_cb_types:
-                lv_cb_types.append(be_type)
-              c_args += "^" + be_type + "^"
-              c_args_doc.append('\\<closure\\>')
-          else:
-            # we have a high-level type that we treat as a class name, enclose in parenthesis
-            c_args += "(" + "lv." + be_type + ")"
-            c_args_doc.append("lv." + be_type)
-      else:
-        print(f"  // unable to parse arguments '{arg_raw}'", file=sys.stderr)
-    
-    # print(f">>> get_widget_arg_type '{c_arg_types}' -> '{c_args}'", file=sys.stderr)
-    return (c_args, c_args_doc)
+                print(f"  // unable to parse arguments '{arg_raw}'", file=sys.stderr)
 
-type_mapper = type_mapper_class()
-
-def try_int(s):
-  try:
-    v = int(s)
-    return v
-  except ValueError:
-    return None
-
-# parse widgets files containing most function calls
-with open(lv_widgets_file) as f:
-  for l_raw in f:
-    l_raw = type_mapper.clean_c_line(l_raw)
-    if (len(l_raw) == 0): continue
-
-    (c_return_type, c_func_name, c_arg_types) = type_mapper.parse_c_line(l_raw)
-    if (c_return_type == None): continue
-
-    c_ret = type_mapper.get_widget_return_type(c_return_type)
-    if c_ret == None:   continue      # skip if nothing to return
-
-    # convert arguments
-    (c_args, c_args_doc_list) = type_mapper.get_widget_arg_type(c_return_type, c_func_name, c_arg_types)
-    if c_args == None: continue      # skip if nothing to return
-
-    # analyze function name and determine if it needs to be assigned to a specific class
-    # Ex: c_func_name -> 'lv_obj_set_parent'
-    if c_func_name.startswith("_"): continue            # skip low-level
-    if c_func_name.startswith("lv_debug_"): continue    # skip debug
-
-    be_func_name = ""
-
-    if c_func_name == "lv_style_init":
-      continue   # no need for init as it would collied with native init (and called behind the scene anyways)
-
-    found = False
-    for subtype in lv_prefix:
-      if c_func_name.startswith("lv_" + subtype + "_"):
-        be_name = re.sub("^lv_" + subtype + "_", '', c_func_name)
-        be_func_name = "lvbe_" + subtype + "_" + be_name
-        if subtype not in lv: lv[subtype] = []    # add entry
-        is_right_type = c_args.startswith(f"(lv.lv_{subtype})")   # check if first arg matches class
-        is_obj_arg1 = c_args.startswith("(lv.lv_obj)")            # or first arg is lv_obj
-        is_group_create = (subtype == 'group') and (c_func_name == 'lv_group_create')
-        if is_right_type or is_obj_arg1 or is_group_create:
-          # remove first argument which is implicit
-          c_args_doc_list = c_args_doc_list[1:]
-          lv[subtype].append(lvgl_function(be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, be_name))
-          # add synonyms
-          syn = get_synonyms(be_name)
-          for n in syn: lv[subtype].append(lvgl_function(be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, n))
-
-          found = True
-          break
-
-    if found: continue
-    # not found, we treat it as lv top level function
-    be_name = re.sub("^lv_", '', c_func_name)
-    lv0.append(lvgl_function(be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, be_name))
-    # add synonyms
-    syn = get_synonyms(be_name)
-    for n in syn: lv0.append(lvgl_function(be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, n))
-
-print("| callback types"+str(lv_cb_types), file=sys.stderr)
-
-# parse module file containing numerical constants
-with open(lv_module_file) as f:
-  for l_raw in f:
-    l_raw = l_raw.strip(" \t\n\r")    # remove leading or trailing spaces
-    if l_raw.startswith("//"):
-      lv_module.append( [ None, l_raw ] )   # if key in None then add comment line
-    l_raw = re.sub(r'//.*$', '', l_raw) # remove trailing comments
-    l_raw = re.sub(r'\s+', '', l_raw) # remove all spaces
-    l_raw = re.sub(r',.*$', '', l_raw) # remove comma and anything after it
-    if (len(l_raw) == 0): continue
-
-    k_v = l_raw.split("=")
-    if len(k_v) > 2:
-      print(f"Error: cannot match {l_raw}")
-      continue
-    # extract the key name
-    k = k_v[0]
-    if k.startswith("_"):
-      continue      # skip any label starting with '_'
-    k = re.sub('^LV_', '', k) # remove remove any LV_ prefix
-    v = None
-    if len(k_v) == 2:   # value is included
-      v = k_v[1]
-      if k is None or v is None: continue   # we skip if key is void or value is void
-
-    if not k.isidentifier():
-      print(f"Error: {k} is not an identifier")
-      continue
-
-    lv_module.append( [k, v] )    # keep as string or None
+        return (c_args, c_args_doc)
 
 
-# documentation in Markdown for `lv` module
-sys.stdout = open(doc_prefix + be_lv_lvgl_doc, 'w')
-print("""# LVGL Berry API Reference
+# ======================================================================
+# Model
+# ======================================================================
+
+class LvglFunction:
+    """A single LVGL function, ready to be emitted as a Berry method/function.
+
+    ``be_name``        the name exposed to Berry (method or function name)
+    ``orig_func_name`` the underlying C symbol
+    ``c_ret_type``     Berry encoding of the return type
+    ``c_argc``         Berry encoding of the argument list
+    ``c_args_doc``     human readable argument list (Markdown)
+    """
+
+    def __init__(self, mapper, c_func_name, c_ret_type, c_argc, c_args_doc_list,
+                 orig_func_name, be_name):
+        # change "lv.lv_" into "lv."
+        c_args_doc = ', '.join(c_args_doc_list)
+        if COMPRESS_LV_TYPE:
+            c_argc = re.sub(r"lv\.lv_", "lv.", c_argc)
+            c_args_doc = re.sub(r"lv\.lv_", "lv.", c_args_doc)
+        self.c_args_doc = c_args_doc
+
+        self.c_func_name = c_func_name
+        self.orig_func_name = orig_func_name
+        self.be_name = be_name
+        if c_ret_type == Sig.ANY:   c_ret_type = Sig.COMPTR        # if return type is '.', return a comptr
+        self.c_argc = c_argc
+        if len(c_ret_type) > 1:
+            if COMPRESS_LV_TYPE:
+                c_ret_type = "lv." + re.sub(r"^lv_", "", c_ret_type)
+            else:
+                c_ret_type = "lv." + c_ret_type
+        self.c_ret_type = c_ret_type
+        self.c_ret_type_doc = mapper.return_type_to_doc(c_ret_type)
+
+    def add_C_line_to_map(self, map):
+        """Add this function's C mapping table entry into ``map`` keyed by be_name."""
+        be_ret_type = self.c_ret_type
+        map[self.be_name] = f"  {{ \"{self.be_name}\", {{ (const void*) &{self.orig_func_name}, \"{be_ret_type}\", \"{self.c_argc}\" }} }},"
+
+
+# ======================================================================
+# Parsing
+# ======================================================================
+
+def parse_functions(mapper, lv_funcs_file):
+    """Parse ``lv_funcs.h`` and classify every supported function.
+
+    Returns ``(lv, lv0)`` where:
+      - ``lv``  is a dict ``subtype -> [LvglFunction, ...]``, sorted by subtype, for every
+        class/widget method (the first argument, the implicit ``self``, is
+        stripped from the documentation).
+      - ``lv0`` is the list of global ``lv.*`` functions.
+    """
+    # Pre-seed the synthetic LVGL8 classes so they exist even without functions
+    lv = {c: [] for c in SYNTHETIC_CLASSES}
+    lv0 = []        # functions in the `lv` module
+
+    with open(lv_funcs_file) as f:
+        for l_raw in f:
+            l_raw = mapper.clean_c_line(l_raw)
+            if (len(l_raw) == 0): continue
+
+            (c_return_type, c_func_name, c_arg_types) = mapper.parse_c_line(l_raw)
+            if (c_return_type == None): continue
+
+            c_ret = mapper.get_widget_return_type(c_return_type)
+            if c_ret == None:   continue      # skip if nothing to return
+
+            # convert arguments
+            (c_args, c_args_doc_list) = mapper.get_widget_arg_type(c_return_type, c_func_name, c_arg_types)
+            if c_args == None: continue      # skip if nothing to return
+
+            # analyze function name and determine if it needs to be assigned to a specific class
+            # Ex: c_func_name -> 'lv_obj_set_parent'
+            if c_func_name.startswith("_"): continue            # skip low-level
+            if c_func_name.startswith("lv_debug_"): continue    # skip debug
+
+            be_func_name = ""
+
+            if c_func_name == "lv_style_init":
+                continue   # no need for init as it would collide with native init (and called behind the scene anyways)
+
+            found = False
+            for subtype in LV_PREFIX:
+                if c_func_name.startswith("lv_" + subtype + "_"):
+                    be_name = re.sub("^lv_" + subtype + "_", '', c_func_name)
+                    be_func_name = "lvbe_" + subtype + "_" + be_name
+                    if subtype not in lv: lv[subtype] = []    # add entry
+                    is_right_type = c_args.startswith(f"(lv.lv_{subtype})")   # check if first arg matches class
+                    is_obj_arg1 = c_args.startswith("(lv.lv_obj)")            # or first arg is lv_obj
+                    is_group_create = (subtype == 'group') and (c_func_name == 'lv_group_create')
+                    if is_right_type or is_obj_arg1 or is_group_create:
+                        # remove first argument which is implicit
+                        c_args_doc_list = c_args_doc_list[1:]
+                        lv[subtype].append(LvglFunction(mapper, be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, be_name))
+                        # add synonyms
+                        for n in get_synonyms(be_name):
+                            lv[subtype].append(LvglFunction(mapper, be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, n))
+
+                        found = True
+                        break
+
+            if found: continue
+            # not found, we treat it as lv top level function
+            be_name = re.sub("^lv_", '', c_func_name)
+            lv0.append(LvglFunction(mapper, be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, be_name))
+            # add synonyms
+            for n in get_synonyms(be_name):
+                lv0.append(LvglFunction(mapper, be_func_name, c_ret, c_args, c_args_doc_list, c_func_name, n))
+
+    # deterministic output: classes in alphabetical order, independent of the
+    # order in which their functions first appear in the LVGL headers
+    return (dict(sorted(lv.items())), lv0)
+
+
+def parse_constants(lv_enum_file):
+    """Parse ``lv_enum.h`` into an ordered list of ``[key, value]`` pairs.
+
+    A ``key`` of ``None`` marks a passthrough comment line. ``value`` is ``None``
+    for a bare enum (its value is resolved by the C compiler).
+    """
+    lv_module = []
+    with open(lv_enum_file) as f:
+        for l_raw in f:
+            l_raw = l_raw.strip(" \t\n\r")    # remove leading or trailing spaces
+            if l_raw.startswith("//"):
+                lv_module.append([None, l_raw])   # if key is None then add comment line
+            l_raw = re.sub(r'//.*$', '', l_raw)  # remove trailing comments
+            l_raw = re.sub(r'\s+', '', l_raw)    # remove all spaces
+            l_raw = re.sub(r',.*$', '', l_raw)   # remove comma and anything after it
+            if (len(l_raw) == 0): continue
+
+            k_v = l_raw.split("=")
+            if len(k_v) > 2:
+                print(f"Error: cannot match {l_raw}")
+                continue
+            # extract the key name
+            k = k_v[0]
+            if k.startswith("_"):
+                continue      # skip any label starting with '_'
+            k = re.sub('^LV_', '', k)  # remove any LV_ prefix
+            v = None
+            if len(k_v) == 2:   # value is included
+                v = k_v[1]
+                if k is None or v is None: continue   # we skip if key is void or value is void
+
+            if not k.isidentifier():
+                print(f"Error: {k} is not an identifier")
+                continue
+
+            lv_module.append([k, v])    # keep as string or None
+
+    return lv_module
+
+
+# ======================================================================
+# Generators
+# ----------------------------------------------------------------------
+# Each generator owns exactly one output file. Large boilerplate blocks
+# are kept as named module-level templates (at column 0) so the dynamic
+# generation logic stays readable.
+# ======================================================================
+
+DOC_HEADER = """# LVGL Berry API Reference
 
 [//]: # (**********************************************************************)
 [//]: # (* Generated code, don't edit                                         *)
 [//]: # (**********************************************************************)
 
-""")
+"""
 
-# Start with `lv` module
-print("## module `lv`") 
-print()
-print("Method|Arguments|Return type|LVGL equivalent")
-print(":---|:---|:---|:---")
-
-for f in sorted(lv0, key=lambda x: x.be_name):
-  print(f"{f.be_name}|{f.c_args_doc}|{f.c_ret_type_doc}|[{f.orig_func_name}](https://docs.lvgl.io/9.0/search.html?q={f.orig_func_name})")
-
-print()
-
-# Continue with core classes
-print("## Core classes") 
-print()
-
-for subtype, flv in sorted(lv.items()):
-  if subtype not in lv_widgets and len(flv) > 0:
-    print(f"### class `lv.{subtype}`")
-    print()
-    print("Method|Arguments|Return type|LVGL equivalent")
-    print(":---|:---|:---|:---")
-    for f in sorted(flv, key=lambda x: x.be_name):
-      if f.c_func_name.endswith("_create"):
-        pass
-        # skip create function that are handled in object constructor (no `create` method)
-      else:
-        print(f"{f.be_name}|{f.c_args_doc}|{f.c_ret_type_doc}|[{f.orig_func_name}](https://docs.lvgl.io/9.0/search.html?q={f.orig_func_name})")
-    print()
-
-# Continue with Widgets
-print("## Widgets") 
-print()
-for subtype in lv_widgets:
-  flv = lv.get(subtype)
-  if flv:
-    print(f"### widget `lv.{subtype}`")
-    print()
-    print("Method|Arguments|Return type|LVGL equivalent")
-    print(":---|:---|:---|:---")
-    for f in sorted(flv, key=lambda x: x.be_name):
-      if f.c_func_name.endswith("_create"):
-        pass
-        # skip create function that are handled in object constructor (no `create` method)
-      else:
-        print(f"{f.be_name}|{f.c_args_doc}|{f.c_ret_type_doc}|[{f.orig_func_name}](https://docs.lvgl.io/9.0/search.html?q={f.orig_func_name})")
-    print()
+DOC_TABLE_HEADER = "Method|Arguments|Return type|LVGL equivalent"
+DOC_TABLE_SEP = ":---|:---|:---|:---"
 
 
-sys.stdout.close()
-      
-sys.stdout = open(out_prefix + be_lv_c_mapping, 'w')
-print("""
+def _doc_row(out, f):
+    """Emit one Markdown table row for a function (skip ``*_create``)."""
+    if f.c_func_name.endswith("_create"):
+        # skip create functions that are handled in the object constructor (no `create` method)
+        return
+    print(f"{f.be_name}|{f.c_args_doc}|{f.c_ret_type_doc}|[{f.orig_func_name}](https://docs.lvgl.io/9.0/search.html?q={f.orig_func_name})", file=out)
+
+
+def generate_doc(path, lv, lv0):
+    """Generate the Markdown API reference (``LVGL_API_Reference.md``)."""
+    with open(path, 'w') as out:
+        print(DOC_HEADER, file=out)
+
+        # Start with the `lv` module
+        print("## module `lv`", file=out)
+        print(file=out)
+        print(DOC_TABLE_HEADER, file=out)
+        print(DOC_TABLE_SEP, file=out)
+        for f in sorted(lv0, key=lambda x: x.be_name):
+            print(f"{f.be_name}|{f.c_args_doc}|{f.c_ret_type_doc}|[{f.orig_func_name}](https://docs.lvgl.io/9.0/search.html?q={f.orig_func_name})", file=out)
+        print(file=out)
+
+        # Continue with core (non-widget) classes
+        print("## Core classes", file=out)
+        print(file=out)
+        for subtype, flv in sorted(lv.items()):
+            if subtype not in LV_WIDGETS and len(flv) > 0:
+                print(f"### class `lv.{subtype}`", file=out)
+                print(file=out)
+                print(DOC_TABLE_HEADER, file=out)
+                print(DOC_TABLE_SEP, file=out)
+                for f in sorted(flv, key=lambda x: x.be_name):
+                    _doc_row(out, f)
+                print(file=out)
+
+        # Continue with widgets
+        print("## Widgets", file=out)
+        print(file=out)
+        for subtype in LV_WIDGETS:
+            flv = lv.get(subtype)
+            if flv:
+                print(f"### widget `lv.{subtype}`", file=out)
+                print(file=out)
+                print(DOC_TABLE_HEADER, file=out)
+                print(DOC_TABLE_SEP, file=out)
+                for f in sorted(flv, key=lambda x: x.be_name):
+                    _doc_row(out, f)
+                print(file=out)
+
+
+C_MAPPING_HEADER = """
 /********************************************************************
  * Generated code, don't edit
   *******************************************************************/
@@ -829,93 +824,377 @@ extern "C" {
 
 #include "be_ctypes.h"
 #include "be_mapping.h"
+#include "../src/lv_berry.h"
 #include "../src/lv_colorwheel.h"
-""")
+#include "../src/lv_stripes.h"
+"""
 
-for subtype, flv in lv.items():
-  print(f"/* `lv_{subtype}` methods */")
-  if subtype in lv_widgets:
-    print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}")
-  print(f"const be_ntv_func_def_t lv_{subtype}_func[] = {{")
-
-  func_out = {} # used to sort output
-  for f in sorted(flv, key=lambda x: x.be_name):
-
-    if f.c_func_name.endswith("_create"):
-      pass
-      # skip create function that are handled in object constructor (no `create` method)
-    else:
-      f.add_C_line_to_map(func_out)
-
-  for be_name in sorted(func_out):
-    print(func_out[be_name])
-
-  print(f"}};")
-  if subtype in lv_widgets:
-    print(f"#endif // BE_LV_WIDGET_{subtype.upper()}")
-  print(f"")
-
-# extern classes
-for subtype in sorted(lv):
-  print(f"extern const bclass be_class_lv_{subtype};");
-print()
-
-# print the global map of classes
-print(f"""
+C_CLASSES_MAP_OPEN = """
 // map of clases
-const be_ntv_class_def_t lv_classes[] = {{""")
+const lv_ntv_class_def_t lv_classes[] = {"""
 
-for subtype in sorted(lv):
-  if subtype in lv_widgets:
-    print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}")
-  print(f"  {{ \"lv_{subtype}\", &be_class_lv_{subtype}, lv_{subtype}_func, sizeof(lv_{subtype}_func) / sizeof(lv_{subtype}_func[0]) }},")
-  if subtype in lv_widgets:
-    print(f"#endif // BE_LV_WIDGET_{subtype.upper()}")
 
-print(f"""}};
+# ----------------------------------------------------------------------
+# Compact method tables (see `lv_ntv_method_t` in src/lv_berry.h)
+#
+# Each method entry is 8 bytes: function pointer, uint16 offset of its name
+# in `lv_method_names`, and uint16 combining a verb code (3 high bits) with
+# an index in `lv_method_sigs` (13 low bits) holding (return_type, arg_type).
+#
+# Names are stored without their verb prefix (ex: `set_style_bg_color` is
+# verb `set_style_` + `bg_color`), identical names are shared and a name that
+# is the tail of another one reuses its bytes.
+#
+# Entries of a class are sorted by (verb code, name): the runtime binary
+# search in `lv_method_find()` (src/lv_berry.c) uses the same order.
+# ----------------------------------------------------------------------
+
+# Verb prefixes, the index is the verb code. MUST stay sorted and in sync with
+# `lv_method_verbs[]` emitted below (the C code reads it from the generated file)
+METHOD_VERBS = ["", "get_", "get_style_", "is_", "set_", "set_style_"]
+METHOD_SIG_BITS = 13            # must match LV_METHOD_SIG_BITS in src/lv_berry.h
+METHOD_NAMES_MAX = 0xFFFF       # name offset is uint16
+
+
+def method_verb(name):
+    """Split a method name into ``(verb_code, rest)`` using the longest verb prefix."""
+    best = 0
+    for code, verb in enumerate(METHOD_VERBS):
+        if verb and name.startswith(verb) and len(verb) > len(METHOD_VERBS[best]):
+            best = code
+    return best, name[len(METHOD_VERBS[best]):]
+
+
+def build_name_blob(names):
+    """Pack unique names into one NUL separated blob, reusing tails of longer names.
+
+    Returns ``(pieces, offsets)``: the list of strings to emit in order, and a
+    dict ``name -> offset`` in the blob."""
+    pieces = []
+    offsets = {}
+    placed = []         # (string, offset) already in the blob
+    pos = 0
+    for n in sorted(set(names), key=lambda s: (-len(s), s)):
+        for s, o in placed:
+            if s.endswith(n):
+                offsets[n] = o + len(s) - len(n)
+                break
+        else:
+            offsets[n] = pos
+            placed.append((n, pos))
+            pieces.append(n)
+            pos += len(n) + 1
+    if pos > METHOD_NAMES_MAX:
+        raise ValueError(f"method names blob too large: {pos} bytes")
+    return pieces, offsets
+
+
+def print_method_tables_header(out, classes, extra_names=()):
+    """Emit verbs, name blob and signature table shared by all class tables.
+
+    ``extra_names`` are added to the name blob (ex: generic style properties)."""
+    all_names = list(extra_names)
+    sig_keys = set()
+    for entries in classes.values():
+        for be_name, f in entries.items():
+            all_names.append(method_verb(be_name)[1])
+            sig_keys.add((f.c_ret_type, f.c_argc))
+    # deterministic output: signatures indexed in alphabetical order
+    sigs = {k: i for i, k in enumerate(sorted(sig_keys))}
+    if len(sigs) >= (1 << METHOD_SIG_BITS):
+        raise ValueError(f"too many method signatures: {len(sigs)}")
+    pieces, offsets = build_name_blob(all_names)
+
+    print("/* verb prefixes, index is the verb code in `lv_ntv_method_t.sig` */", file=out)
+    print(f"#define LV_METHOD_VERBS_NB  {len(METHOD_VERBS)}", file=out)
+    print("static const char * const lv_method_verbs[LV_METHOD_VERBS_NB] = {", file=out)
+    print("  " + ", ".join(f'"{v}"' for v in METHOD_VERBS), file=out)
+    print("};", file=out)
+    print(file=out)
+    print("/* method names without verb prefix, `\\0` separated */", file=out)
+    print("static const char lv_method_names[] =", file=out)
+    pos = 0
+    for p in pieces:
+        print(f'  /* {pos:5} */ "{p}\\0"', file=out)
+        pos += len(p) + 1
+    print(";", file=out)
+    print(file=out)
+    print("/* (return_type, arg_type) signatures */", file=out)
+    print("static const lv_ntv_sig_t lv_method_sigs[] = {", file=out)
+    for (ret, args), idx in sorted(sigs.items(), key=lambda kv: kv[1]):
+        print(f'  /* {idx:3} */ {{ "{ret}", "{args}" }},', file=out)
+    print("};", file=out)
+    print(file=out)
+    return offsets, sigs
+
+
+def class_method_entries(flv):
+    """Return ``{be_name: LvglFunction}`` for the methods of a class (no `_create`)."""
+    entries = {}
+    for f in sorted(flv, key=lambda x: x.be_name):
+        if f.c_func_name.endswith("_create"):
+            continue    # handled in the object constructor (no `create` method)
+        entries[f.be_name] = f
+    return entries
+
+
+# ----------------------------------------------------------------------
+# Generic style accessors (see STYLE_GENERIC_ACCESSORS in lvgl_config.py)
+#
+# `obj.set_style_<p>(v, sel)`, `obj.get_style_<p>(part)` and `style.set_<p>(v)`
+# are resolved at runtime from `lv_style_props[]` instead of one method entry
+# (and one LVGL function) each. Unreferenced LVGL functions are then removed
+# by the linker.
+# ----------------------------------------------------------------------
+
+# C value kinds, must match LV_SKIND_* in src/lv_berry.h
+STYLE_KINDS = {'num': 0, 'u8': 1, 'u16': 2, 'bool': 3, 'color': 4, 'ptr': 5}
+# accessor flags, must match LV_SPROP_* in src/lv_berry.h
+SPROP_OBJ_SET, SPROP_OBJ_GET, SPROP_STYLE_SET = 1, 2, 4
+STYLE_TYPES_MAX = 32            # type index is 5 bits
+
+
+def scan_small_typedefs(include_dir):
+    """Return ``{type_name: c_kind}`` for types declared as ``typedef uint8_t/uint16_t <name>;``."""
+    kinds = {}
+    for h in sorted(Path(include_dir).rglob('*.h')):
+        for base, name in re.findall(r'typedef\s+(u?int8_t|u?int16_t)\s+(\w+)\s*;', h.read_text(errors='replace')):
+            # signed small types are not supported (None), they stay explicit methods
+            kinds[name] = None if not base.startswith('u') else ('u16' if '16' in base else 'u8')
+    return kinds
+
+
+def parse_style_gen(sources, include_dir):
+    """Parse LVGL's generated style sources.
+
+    Returns ``{prop: {...}}`` (prop is lower case, ex: ``bg_color``) only for
+    functions following the standard generated pattern, so that the generic
+    accessor is strictly equivalent. Keys: ``c_prop`` (``LV_STYLE_BG_COLOR``),
+    ``kind`` (see STYLE_KINDS) and ``obj_set``/``obj_get``/``style_set`` flags.
+    """
+    og = Path(sources["obj"]).read_text()
+    ig = Path(sources["obj_internal"]).read_text()
+    sg = Path(sources["style"]).read_text()
+    small = scan_small_typedefs(include_dir)
+    small.update({'uint8_t': 'u8', 'int8_t': None, 'uint16_t': 'u16', 'int16_t': None})
+
+    def c_kind(ctype, member):
+        if member in ('color', 'ptr'):
+            return member
+        ctype = ctype.replace('const ', '').strip()
+        if ctype == 'bool':
+            return 'bool'
+        return small.get(ctype, 'num')
+
+    VAL = r'\.(num|ptr|color) = (?:\([^)]*\))?value'
+    props = {}
+
+    def add(p, c_prop, ctype, member, flag):
+        if c_prop != 'LV_STYLE_' + p.upper() or c_kind(ctype, member) is None:
+            return
+        e = props.setdefault(p, {'c_prop': c_prop, 'kind': c_kind(ctype, member)})
+        if e['kind'] != c_kind(ctype, member):
+            return
+        e[flag] = True
+
+    for m in re.finditer(r'void lv_obj_set_style_(\w+)\(lv_obj_t \* obj, ([^,]+?) value, lv_style_selector_t selector\)\s*\{\s*'
+                         r'LV_CHECK_OBJ\(obj, &lv_obj_class, return\);\s*lv_style_value_t v = \{\s*' + VAL +
+                         r'\s*\};\s*lv_obj_set_local_style_prop\(obj, (LV_STYLE_\w+), v, selector\);\s*\}', og):
+        add(m.group(1), m.group(4), m.group(2), m.group(3), 'obj_set')
+    internal = {}
+    for m in re.finditer(r'static inline (.+?) lv_obj_get_style_(\w+)_internal\(const lv_obj_t \* obj, lv_part_t part\)\s*\{\s*'
+                         r'LV_ASSERT\(obj != NULL\);\s*lv_style_value_t v = lv_obj_get_style_prop_internal\(obj, part, (LV_STYLE_\w+)\);\s*'
+                         r'return (?:\((.+?)\))?v\.(num|ptr|color);\s*\}', ig):
+        if (m.group(4) or m.group(1)).strip() == m.group(1).strip():       # cast must be the return type
+            internal[m.group(2)] = (m.group(1), m.group(3), m.group(5))
+    for m in re.finditer(r'\n[^\n]+? lv_obj_get_style_(\w+)\(const lv_obj_t \* obj, lv_part_t part\)\s*\{\s*'
+                         r'LV_CHECK_OBJ\(obj, &lv_obj_class, return [^;]*?\);\s*return lv_obj_get_style_(\w+)_internal\(obj, part\);\s*\}', og):
+        if m.group(1) == m.group(2) and m.group(1) in internal:
+            ctype, c_prop, member = internal[m.group(1)]
+            add(m.group(1), c_prop, ctype, member, 'obj_get')
+    for m in re.finditer(r'void lv_style_set_(\w+)\(lv_style_t \* style, (.+?) value\)\s*\{\s*'
+                         r'LV_CHECK_ARG\(style != NULL && LV_STYLE_SENTINEL_OK\(style\), return\);\s*lv_style_value_t v = \{\s*' + VAL +
+                         r'\s*\};\s*lv_style_set_prop\(style, (LV_STYLE_\w+), v\);\s*\}', sg):
+        add(m.group(1), m.group(4), m.group(2), m.group(3), 'style_set')
+    return props
+
+
+def split_style_methods(classes):
+    """Remove generic style accessors from the `obj` and `style` class tables.
+
+    Returns ``(style_props, style_types)``:
+    - ``style_props``: ``{name: {'c_prop', 'type', 'flags'}}`` where ``name`` is
+      the method name without verb (aliases like ``img_opa`` included)
+    - ``style_types``: ``{(value_arg, return_type, kind): index}``
+    """
+    if not STYLE_GENERIC_ACCESSORS:
+        return {}, {}
+    tools_dir = Path(__file__).parent
+    info = parse_style_gen({k: tools_dir / v for k, v in STYLE_GEN_SOURCES.items()},
+                           tools_dir / LV_SRC_INCLUDE_DIR)
+    # (class, verb, C prefix, info flag, accessor flag)
+    rules = [
+        ('obj',   'set_style_', 'lv_obj_set_style_', 'obj_set',   SPROP_OBJ_SET),
+        ('obj',   'get_style_', 'lv_obj_get_style_', 'obj_get',   SPROP_OBJ_GET),
+        ('style', 'set_',       'lv_style_set_',     'style_set', SPROP_STYLE_SET),
+    ]
+    props = {}
+    for subtype, verb, c_prefix, info_flag, flag in rules:
+        entries = classes.get(subtype, {})
+        for be_name in list(entries):
+            f = entries[be_name]
+            code, rest = method_verb(be_name)
+            if METHOD_VERBS[code] != verb or not f.orig_func_name.startswith(c_prefix):
+                continue
+            p = info.get(f.orig_func_name[len(c_prefix):])
+            if p is None or not p.get(info_flag):
+                continue
+            # the Berry signature must have the standard shape
+            if flag == SPROP_OBJ_SET:
+                m = re.fullmatch(r'\(lv\.obj\)(.+)i', f.c_argc)
+                value_arg, ret = (m.group(1) if m else None), None
+                ok = m is not None and f.c_ret_type == ""
+            elif flag == SPROP_OBJ_GET:
+                value_arg, ret = None, f.c_ret_type
+                ok = f.c_argc == "(lv.obj)i" and f.c_ret_type != ""
+            else:
+                m = re.fullmatch(r'\(lv\.style\)(.+)', f.c_argc)
+                value_arg, ret = (m.group(1) if m else None), None
+                ok = m is not None and f.c_ret_type == ""
+            if not ok:
+                continue
+            e = props.setdefault(rest, {'c_prop': p['c_prop'], 'kind': p['kind'], 'value_arg': None, 'ret': None, 'flags': 0})
+            if e['c_prop'] != p['c_prop'] or e['kind'] != p['kind']:
+                continue
+            if value_arg is not None:
+                if e['value_arg'] not in (None, value_arg):
+                    continue
+                e['value_arg'] = value_arg
+            if ret is not None:
+                if e['ret'] not in (None, ret):
+                    continue
+                e['ret'] = ret
+            e['flags'] |= flag
+            del entries[be_name]            # resolved at runtime, no method entry
+    # drop names that ended with no accessor (only possible after a conflict)
+    props = {k: v for k, v in props.items() if v['flags']}
+    # deterministic output: types indexed in alphabetical order
+    keys = sorted({(e['value_arg'] or "", e['ret'] or "", e['kind']) for e in props.values()})
+    types = {k: i for i, k in enumerate(keys)}
+    for e in props.values():
+        e['type'] = types[(e['value_arg'] or "", e['ret'] or "", e['kind'])]
+    if len(types) > STYLE_TYPES_MAX:
+        raise ValueError(f"too many style types: {len(types)}")
+    return props, types
+
+
+def print_style_tables(out, props, types, name_offsets):
+    """Emit `lv_style_types[]` and `lv_style_props[]` (sorted by name)."""
+    print("/* generic style accessors: value types, see `lv_style_ntv_type_t` */", file=out)
+    print("_Static_assert(LV_STYLE_LAST_BUILT_IN_PROP <= 0xFF, \"style prop IDs must fit in uint8_t\");", file=out)
+    print("static const lv_style_ntv_type_t lv_style_types[] = {", file=out)
+    for (value_arg, ret, kind), idx in sorted(types.items(), key=lambda kv: kv[1]):
+        print(f'  /* {idx:2} */ {{ "{value_arg}", "{ret}", LV_SKIND_{kind.upper()} }},', file=out)
+    print("};", file=out)
+    print(file=out)
+    print("/* generic style accessors, sorted by name without verb */", file=out)
+    print("static const lv_style_ntv_prop_t lv_style_props[] = {", file=out)
+    for name in sorted(props):
+        e = props[name]
+        flags = " | ".join(n for b, n in ((SPROP_OBJ_SET, "LV_SPROP_OBJ_SET"), (SPROP_OBJ_GET, "LV_SPROP_OBJ_GET"),
+                                         (SPROP_STYLE_SET, "LV_SPROP_STYLE_SET")) if e['flags'] & b)
+        print(f"  {{ {name_offsets[name]}, {e['c_prop']}, LV_SPROP_INFO({e['type']}, {flags}) }},    /* {name} */", file=out)
+    print("};", file=out)
+    print("#define LV_STYLE_PROPS_NB  (sizeof(lv_style_props) / sizeof(lv_style_props[0]))", file=out)
+    print(file=out)
+
+C_CLASSES_MAP_CLOSE = """};
 const size_t lv_classes_size = sizeof(lv_classes) / sizeof(lv_classes[0]);
-""")
+"""
 
-# previous generation calls
-
-# keep only create
-for subtype, flv in lv.items():
-  print(f"  /* `lv_{subtype}` methods */")
-  create_found = False        # does the method contains an explicit `_create()` method
-  for f in sorted(flv, key=lambda x: x.be_name):
-    if f.c_func_name.endswith("_create"):
-      create_found = True
-      c_ret_type = "+_p"  # constructor, init method does not return any value
-      if subtype in lv_widgets:
-        print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}")
-        print(f"  int be_ntv_lv_{subtype}_init(bvm *vm)       {{ return be_call_c_func(vm, (void*) &{f.orig_func_name}, \"+_p\", \"{f.c_argc}\"); }}")
-        print(f"#endif // BE_LV_WIDGET_{subtype.upper()}")
-      else:
-        print(f"  int be_ntv_lv_{subtype}_init(bvm *vm)       {{ return be_call_c_func(vm, (void*) &{f.orig_func_name}, \"+_p\", \"{f.c_argc}\"); }}")
-
-  if not create_found and subtype in lv_widgets:
-    # there is no explicit create, add one
-    print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}")
-    print(f"  int be_ntv_lv_{subtype}_init(bvm *vm)       {{ return be_call_c_func(vm, (void*) &{f.orig_func_name}, \"+_p\", \"{f.c_argc}\"); }}")
-    print(f"#endif // BE_LV_WIDGET_{subtype.upper()}")
-
-
-print("""
+C_FONT_THEME_CREATE = """
 // create font either empty or from parameter on stack
 int lvbe_font_create(bvm *vm)       { return be_call_c_func(vm, NULL, "+_p", ""); }
 int lvbe_theme_create(bvm *vm)       { return be_call_c_func(vm, NULL, "+_p", ""); }
-""")
-
-print()
-print("#ifdef __cplusplus")
-print("} /* extern \"C\" */")
-print("#endif")
-print("/********************************************************************/")
-sys.stdout.close()
+"""
 
 
-sys.stdout = open(lvgl_prefix + be_lv_widgets_libs, 'w')
-print("""
+def generate_c_mapping(path, lv):
+    """Generate ``be_lv_c_mapping.h``: per-class method tables, the class map,
+    and the widget constructor (``_init``) functions."""
+    with open(path, 'w') as out:
+        print(C_MAPPING_HEADER, file=out)
+
+        # shared verbs, names and signatures
+        classes = {subtype: class_method_entries(flv) for subtype, flv in lv.items()}
+        style_props, style_types = split_style_methods(classes)
+        name_offsets, sigs = print_method_tables_header(out, classes, style_props.keys())
+        print_style_tables(out, style_props, style_types, name_offsets)
+
+        # Per-class method dispatch tables, sorted by (verb, name without verb)
+        for subtype, entries in classes.items():
+            print(f"/* `lv_{subtype}` methods */", file=out)
+            if subtype in LV_WIDGETS:
+                print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}", file=out)
+            print(f"const lv_ntv_method_t lv_{subtype}_func[] = {{", file=out)
+
+            for be_name in sorted(entries, key=method_verb):
+                f = entries[be_name]
+                verb, rest = method_verb(be_name)
+                sig = sigs[(f.c_ret_type, f.c_argc)]
+                print(f"  {{ (const void*) &{f.orig_func_name}, {name_offsets[rest]}, LV_MSIG({verb}, {sig}) }},"
+                      f"    /* {be_name} */", file=out)
+
+            print("};", file=out)
+            if subtype in LV_WIDGETS:
+                print(f"#endif // BE_LV_WIDGET_{subtype.upper()}", file=out)
+            print(file=out)
+
+        # extern class declarations
+        for subtype in sorted(lv):
+            print(f"extern const bclass be_class_lv_{subtype};", file=out)
+        print(file=out)
+
+        # global map of classes
+        print(C_CLASSES_MAP_OPEN, file=out)
+        for subtype in sorted(lv):
+            if subtype in LV_WIDGETS:
+                print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}", file=out)
+            print(f"  {{ \"lv_{subtype}\", &be_class_lv_{subtype}, lv_{subtype}_func, sizeof(lv_{subtype}_func) / sizeof(lv_{subtype}_func[0]) }},", file=out)
+            if subtype in LV_WIDGETS:
+                print(f"#endif // BE_LV_WIDGET_{subtype.upper()}", file=out)
+        print(C_CLASSES_MAP_CLOSE, file=out)
+
+        # widget constructors (`_init`): keep only the `_create` functions
+        for subtype, flv in lv.items():
+            print(f"  /* `lv_{subtype}` methods */", file=out)
+            create_found = False        # does the class have an explicit `_create()` method?
+            for f in sorted(flv, key=lambda x: x.be_name):
+                if f.c_func_name.endswith("_create"):
+                    create_found = True
+                    if subtype in LV_WIDGETS:
+                        print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}", file=out)
+                        print(f"  int be_ntv_lv_{subtype}_init(bvm *vm)       {{ return be_call_c_func(vm, (void*) &{f.orig_func_name}, \"{Sig.CTOR_NONNULL}\", \"{f.c_argc}\"); }}", file=out)
+                        print(f"#endif // BE_LV_WIDGET_{subtype.upper()}", file=out)
+                    else:
+                        print(f"  int be_ntv_lv_{subtype}_init(bvm *vm)       {{ return be_call_c_func(vm, (void*) &{f.orig_func_name}, \"{Sig.CTOR_NONNULL}\", \"{f.c_argc}\"); }}", file=out)
+
+            if not create_found and subtype in LV_WIDGETS:
+                # there is no explicit create, add one (reusing the last parsed function `f`)
+                print(f"#ifdef BE_LV_WIDGET_{subtype.upper()}", file=out)
+                print(f"  int be_ntv_lv_{subtype}_init(bvm *vm)       {{ return be_call_c_func(vm, (void*) &{f.orig_func_name}, \"{Sig.CTOR_NONNULL}\", \"{f.c_argc}\"); }}", file=out)
+                print(f"#endif // BE_LV_WIDGET_{subtype.upper()}", file=out)
+
+        print(C_FONT_THEME_CREATE, file=out)
+
+        print(file=out)
+        print("#ifdef __cplusplus", file=out)
+        print("} /* extern \"C\" */", file=out)
+        print("#endif", file=out)
+        print("/********************************************************************/", file=out)
+
+
+WIDGETS_LIB_HEADER = """
 /********************************************************************
  * Generated code, don't edit
  *******************************************************************/
@@ -949,22 +1228,19 @@ extern int lvbe_theme_create(bvm *vm);
 // adding ad-hoc colorwheel from LVGL8 to LVGL9
 extern const lv_obj_class_t lv_colorwheel_class;
 
-""")
+// custom Tasmota widget: rectangle filled with an angled stripe pattern
+extern const lv_obj_class_t lv_stripes_class;
 
-# expose all extern definitions:
-for subtype, flv in lv.items():
-  print(f"""extern int be_ntv_lv_{subtype}_init(bvm *vm);""")
+#include "be_lv_classes.h"
 
-print()
+"""
 
-# extern classes
-for subtype in sorted(lv):
-  print(f"extern const bclass be_class_lv_{subtype};");
-print()
+CLASSES_HEADER = """/********************************************************************
+ * Generated code, don't edit
+ *******************************************************************/
+"""
 
-# Define specific classes for lv_obj
-#
-print("""
+WIDGETS_LIB_CORE_CLASSES = """
 /********************************************************************
 ** Solidified class: lv_style
 ********************************************************************/
@@ -1112,47 +1388,67 @@ class be_class_lv_color (scope: global, name: lv_color, strings: weak) {
 extern void arc_anim_start_angle(void * obj, int32_t v);
 extern void arc_anim_end_angle(void * obj, int32_t v);
 
-""")
+"""
 
 
-for subtype, flv in lv.items():
-  if subtype == 'obj':  continue    # 'obj' has a special implementation
-  # special version for widgets
-  if subtype in lv_widgets:
-    super_class = lv_widget_inheritance.get(subtype, "obj")    # get superclass, default to lv_obj
-    print(f"""/********************************************************************
+def generate_classes_header(path, lv):
+    """Generate ``be_lv_classes.h``: extern declarations for the ad-hoc
+    LVGL8 colorwheel/stripes classes, the widget constructor (``_init``)
+    functions, and the widget class objects (included by
+    ``be_lvgl_widgets_lib.c``)."""
+    with open(path, 'w') as out:
+        print(CLASSES_HEADER, file=out)
+
+        # expose all extern constructor definitions
+        for subtype, flv in lv.items():
+            print(f"extern int be_ntv_lv_{subtype}_init(bvm *vm);", file=out)
+        print(file=out)
+
+        # extern class declarations
+        for subtype in sorted(lv):
+            print(f"extern const bclass be_class_lv_{subtype};", file=out)
+
+
+def generate_widgets_lib(path, lv):
+    """Generate ``be_lvgl_widgets_lib.c``: the solidified Berry class and
+    widget definitions (consumed later by the ``coc`` tool)."""
+    with open(path, 'w') as out:
+        print(WIDGETS_LIB_HEADER, file=out)
+
+        # hand-written core classes (lv_obj and friends)
+        print(WIDGETS_LIB_CORE_CLASSES, file=out)
+
+        # one solidified class per widget
+        for subtype, flv in lv.items():
+            if subtype == 'obj':  continue    # 'obj' has a special implementation
+            if subtype not in LV_WIDGETS:  continue
+            super_class = LV_WIDGET_INHERITANCE.get(subtype, "obj")    # superclass, default to lv_obj
+            print(f"""/********************************************************************
 ** Solidified class: lv_{subtype}
 ********************************************************************/
 #include "be_fixed_be_class_lv_{subtype}.h"
-/* @const_object_info_begin""")
-    if super_class is not None:
-      print(f"class be_class_lv_{subtype} (scope: global, name: lv_{subtype}, super: be_class_lv_{super_class}, strings: weak) {{")
-    else:
-      print(f"class be_class_lv_{subtype} (scope: global, name: lv_{subtype}, strings: weak) {{")
-      print(f"    _p, var")
-      print(f"    tostring, func(lv_x_tostring)")
-      print(f"    member, func(lv_x_member)")
-    print(f"    init, func(be_ntv_lv_{subtype}_init)")
+/* @const_object_info_begin""", file=out)
+            if super_class is not None:
+                print(f"class be_class_lv_{subtype} (scope: global, name: lv_{subtype}, super: be_class_lv_{super_class}, strings: weak) {{", file=out)
+            else:
+                print(f"class be_class_lv_{subtype} (scope: global, name: lv_{subtype}, strings: weak) {{", file=out)
+                print(f"    _p, var", file=out)
+                print(f"    tostring, func(lv_x_tostring)", file=out)
+                print(f"    member, func(lv_x_member)", file=out)
+            print(f"    init, func(be_ntv_lv_{subtype}_init)", file=out)
 
-    if subtype not in lv_widgets_no_class:
-      print(f"    _class, comptr(&lv_{subtype}_class)")
-    if subtype in lv_widget_custom_ptr:
-      for k, v in lv_widget_custom_ptr[subtype].items():
-        print(f"    {k}, {v}")
+            if subtype not in LV_WIDGETS_NO_CLASS:
+                print(f"    _class, comptr(&lv_{subtype}_class)", file=out)
+            if subtype in LV_WIDGET_CUSTOM_PTR:
+                for k, v in LV_WIDGET_CUSTOM_PTR[subtype].items():
+                    print(f"    {k}, {v}", file=out)
 
-    print(f"""}}
+            print(f"""}}
 @const_object_info_end */
-""")
-
-sys.stdout.close()
+""", file=out)
 
 
-sys.stdout = open(lvgl_prefix + be_lv_lvgl_module, 'w')
-print("/********************************************************************")
-print(" * Generated code, don't edit")
-print(" *******************************************************************/")
-
-print("""/********************************************************************
+MODULE_LV_FUNC_OPEN = """/********************************************************************
  * LVGL Module
  *******************************************************************/
 #include "be_constobj.h"
@@ -1172,109 +1468,48 @@ extern int lv0_load_font(bvm *vm);
 
 extern lv_ts_calibration_t * lv_get_ts_calibration(void);
 
+// LVGL 9.6: NULL display is deprecated, and with LV_USE_CHECK_ARG 0 a NULL default display crashes; return 0 if no display (9.5 behavior)
 static int lv_get_hor_res(void) {
-  return lv_display_get_horizontal_resolution(NULL);
+  lv_display_t * disp = lv_display_get_default();
+  return disp ? lv_display_get_horizontal_resolution(disp) : 0;
 }
 static int lv_get_ver_res(void) {
-  return lv_display_get_vertical_resolution(NULL);
+  lv_display_t * disp = lv_display_get_default();
+  return disp ? lv_display_get_vertical_resolution(disp) : 0;
 }
 
 /* `lv` methods */
 const be_ntv_func_def_t lv_func[] = {
-""")
+"""
 
-func_out = {} # used to sort output
-for f in lv0:
-  f.add_C_line_to_map(func_out)
-  # c_func_name = f[0]
-  # c_ret_type = f[1]
-  # c_argc = f[2]
-  # if c_argc is not None: c_argc = "\"" + c_argc + "\""
-  # orig_func_name = f[3]
-  # be_name = f[4]
-
-  # # if c_ret_type is an object, prefix with `lv.`
-  # # if len(c_ret_type) > 1: c_ret_type = "lv." + c_ret_type
-  # if len(c_ret_type) > 1: c_ret_type = "lv." + c_ret_type
-
-  # func_out[be_name] = f"  {{ \"{be_name}\", {{ (const void*) &{orig_func_name}, \"{c_ret_type}\", { c_argc if c_argc else 'nullptr'} }} }},"
-
-
-  # # any synonyms?
-  # f_synonyms = get_synonyms(be_name)
-  # if f_synonyms:
-  #   for new_be_name in f_synonyms:
-  #       func_out[new_be_name] = f"  {{ \"{new_be_name}\", {{ (const void*) &{orig_func_name}, \"{c_ret_type}\", { c_argc if c_argc else 'nullptr'} }} }},"
-
-
-for be_name in sorted(func_out):
-  print(func_out[be_name])
-
-
-
-
-  # // resolution
-  # { "get_hor_res", (void*) &lv_get_hor_res, "i", "" },
-  # { "get_ver_res", (void*) &lv_get_ver_res, "i", "" },
-
-  # // layers
-  # { "layer_sys", (void*) &lv_layer_sys, "lv_obj", "" },
-  # { "layer_top", (void*) &lv_layer_top, "lv_obj", "" },
-
-  # // screens
-  # { "scr_act", (void*) &lv_scr_act, "lv_obj", "" },
-  # { "scr_load", (void*) &lv_scr_load, "", "(lv_obj)" },
-  # { "scr_load_anim", (void*) &lv_scr_load_anim, "", "(lv_obj)iiib" },
-print("""
+MODULE_LV_FUNC_CLOSE = """
 };
 const size_t lv_func_size = sizeof(lv_func) / sizeof(lv_func[0]);
 
-""")
+"""
 
-print("""
+MODULE_CONSTANTS_OPEN = """
 
 const be_const_member_t lv0_constants[] = {
-""")
+"""
 
-lv_module2 = {}
-for k_v in lv_module:
-  (k,v) = k_v
-  if k is not None:
-    lv_module2[k] = v
-
-# print the enums, symbols and functions
-# Ex: { "ALIGN_BOTTOM_LEFT", LV_ALIGN_BOTTOM_LEFT },
-#
-# Encoding:
-# 1. `COLOR_WHITE=0xFFFFFF` enum with explicit value
-# 2. `LV_EVENT_ALL` enum with implicit value with same name resolved by C compiler
-# 3. `$SYMBOL_OK="\xef\x80\x8c"` if starts with `$` then it's a string
-# 4. `&seg7_font=lv0_load_seg7_font` if starts with `&` then it's a native function
-#
-# We need to sort ignoring the first char if it's not a letter
-for k in sorted(lv_module2):
-  v = lv_module2[k]
-  # check the type of the value
-  # if first char is '"' then it's a string and prefix with '$'
-  # if first char is '&' then it's a function and prefix with '&'
-  # if no value, then it's an enum, prefix with `LV_`
-  # otherwise it's an int, leave if unchanged
-  if v is not None:
-    v_prefix = ""
-    v_macro = "be_cconst_int"
-    if v[0] == '"': v_prefix = "$"; v_macro = "be_cconst_string"
-    if v[0] == '&': v_prefix = "&"; v_macro = "be_cconst_ptr"
-    if v[0] == '@': v_prefix = "@"; v_macro = "be_cconst_ptr"; v = "&" + v[1:]
-    if v[0] == '>': v_prefix = ">"; v_macro = "be_ctype"; v = v[1:]
-    print(f"    {{ \"{v_prefix}{k}\", {v_macro}({v}) }},")
-  else:
-    print(f"    {{ \"{k}\", be_cconst_int(LV_{k}) }},")
-
-print("""
+MODULE_CONSTANTS_CLOSE = """
 };
 
 const size_t lv0_constants_size = sizeof(lv0_constants)/sizeof(lv0_constants[0]);
 
+/* Constants grouped by prefix, names are stored without the prefix and its `_` */
+"""
+
+MODULE_CONSTANTS_GROUPS_OPEN = """
+const lv_const_group_t lv0_constants_groups[] = {"""
+
+MODULE_CONSTANTS_GROUPS_CLOSE = """};
+
+const size_t lv0_constants_groups_size = sizeof(lv0_constants_groups)/sizeof(lv0_constants_groups[0]);
+"""
+
+MODULE_TRAILER = """
 #include "../src/solidify/solidified_lv.h"
 
 /* @const_object_info_begin
@@ -1284,9 +1519,110 @@ module lv (scope: global, file: lv) {
 }
 @const_object_info_end */
 #include "be_fixed_lv.h"
-""")
+"""
 
-print("/********************************************************************/")
-sys.stdout.close()
 
-type_mapper.dump_return_types_stats(False)    # True would dump all stats, False only unused
+def generate_module(path, lv0, lv_module):
+    """Generate ``be_lvgl_module.c``: the ``lv`` module with its global
+    functions table and the constant/enum/symbol member table."""
+    with open(path, 'w') as out:
+        print("/********************************************************************", file=out)
+        print(" * Generated code, don't edit", file=out)
+        print(" *******************************************************************/", file=out)
+
+        print(MODULE_LV_FUNC_OPEN, file=out)
+
+        # global `lv` functions, sorted by Berry name
+        func_out = {}  # used to sort output
+        for f in lv0:
+            f.add_C_line_to_map(func_out)
+        for be_name in sorted(func_out):
+            print(func_out[be_name], file=out)
+
+        print(MODULE_LV_FUNC_CLOSE, file=out)
+
+        # constant/enum/symbol member table
+        print(MODULE_CONSTANTS_OPEN, file=out)
+
+        # collapse the [key, value] pairs into a dict (drop comment-only lines)
+        lv_module2 = {}
+        for (k, v) in lv_module:
+            if k is not None:
+                lv_module2[k] = v
+
+        # Emit the enums, symbols and function pointers (see the `Member` class
+        # for the value-encoding contract). Keys are sorted ignoring a leading
+        # non-letter prefix, matching the runtime binary search.
+        # Most constants go to prefix groups (names stored without the common
+        # prefix), the main table only keeps the ones that can't be grouped.
+        main, groups = group_constants(lv_module2)
+        for k in sorted(main):
+            print(Member.encode(k, main[k]), file=out)
+
+        print(MODULE_CONSTANTS_CLOSE, file=out)
+
+        # one sorted table per prefix group
+        for prefix in sorted(groups):
+            members = groups[prefix]
+            print(f"static const be_const_member_t lv0_constants_{prefix}[] = {{", file=out)
+            for name in sorted(members):
+                k, v = members[name]
+                print(Member.encode(k, v, name), file=out)
+            print("};", file=out)
+
+        # index of groups, sorted by prefix for binary search
+        print(MODULE_CONSTANTS_GROUPS_OPEN, file=out)
+        for prefix in sorted(groups):
+            print(f'    {{ "{prefix}", lv0_constants_{prefix}, '
+                  f'sizeof(lv0_constants_{prefix})/sizeof(lv0_constants_{prefix}[0]) }},', file=out)
+        print(MODULE_CONSTANTS_GROUPS_CLOSE, file=out)
+        print(MODULE_TRAILER, file=out)
+
+        print("/********************************************************************/", file=out)
+
+
+# ======================================================================
+# Entry point
+# ======================================================================
+
+# Output file names (inside the generate directory)
+BE_LV_C_MAPPING = "be_lv_c_mapping.h"
+BE_LV_CLASSES = "be_lv_classes.h"
+BE_LV_WIDGETS_LIB = "be_lvgl_widgets_lib.c"
+BE_LV_MODULE = "be_lvgl_module.c"
+BE_LV_DOC = "LVGL_API_Reference.md"
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate the LVGL Berry binding from normalized headers")
+    parser.add_argument("--funcs", default="../mapping/lv_funcs.h",
+                        help="input: normalized function prototypes (from preprocessor.py)")
+    parser.add_argument("--enums", default="../mapping/lv_enum.h",
+                        help="input: enum/constant/symbol definitions (from preprocessor.py)")
+    parser.add_argument("--out-dir", default="../generate/",
+                        help="output directory for the generated binding files")
+    args = parser.parse_args()
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    mapper = TypeMapper()
+
+    # 1. parse functions and 2. parse constants
+    lv, lv0 = parse_functions(mapper, args.funcs)
+    print("| callback types" + str(mapper.callbacks_seen), file=sys.stderr)
+    lv_module = parse_constants(args.enums)
+
+    # 3. generate the output files (same order as the historical script)
+    generate_doc(out_dir / BE_LV_DOC, lv, lv0)
+    generate_c_mapping(out_dir / BE_LV_C_MAPPING, lv)
+    generate_classes_header(out_dir / BE_LV_CLASSES, lv)
+    generate_widgets_lib(out_dir / BE_LV_WIDGETS_LIB, lv)
+    generate_module(out_dir / BE_LV_MODULE, lv0, lv_module)
+
+    # report C types that were never used or could not be mapped
+    mapper.dump_return_types_stats(False)    # True would dump all stats, False only unused
+
+
+if __name__ == "__main__":
+    main()

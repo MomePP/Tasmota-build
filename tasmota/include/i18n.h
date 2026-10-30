@@ -82,6 +82,7 @@
 #define D_JSON_EVERY "Every"
 #define D_JSON_EXPORT "Export"
 #define D_JSON_EXPORT_ACTIVE "ExportActive"
+#define D_JSON_EXPORT_ACTIVE_TOTAL "ExportActiveTotal"
 #define D_JSON_EXPORT_REACTIVE "ExportReactive"
 #define D_JSON_EXPORT_POWER "ExportPower"
 #define D_JSON_FAILED "Failed"
@@ -147,6 +148,7 @@
 #define D_JSON_POWERFACTOR "Factor"
 #define D_JSON_POWERMAX "MaxPower"
 #define D_JSON_POWERUSAGE "Power"
+#define D_JSON_POWERUSAGE_TOTAL "PowerTotal"
 #define D_JSON_ACTIVE_POWERUSAGE "ActivePower"
 #define D_JSON_APPARENT_POWERUSAGE "ApparentPower"
 #define D_JSON_REACTIVE_POWERUSAGE "ReactivePower"
@@ -344,6 +346,7 @@
 #define D_CMND_IPADDRESS "IPAddress"
 #define D_CMND_NTPSERVER "NtpServer"
 #define D_CMND_AP "Ap"
+#define D_CMND_BSSID "BSSId"
 #define D_CMND_SSID "SSId"
 #define D_CMND_PASSWORD "Password"
 #define D_CMND_HOSTNAME "Hostname"
@@ -416,6 +419,7 @@
 #define D_CMND_TOUCH_THRES "TouchThres"
 #define D_CMND_TOUCH_NUM "TouchNum"
 #define D_CMND_CPU_FREQUENCY "CpuFrequency"
+#define D_CMND_LDO "Ldo"
 #endif  // ESP32
 
 // Commands xdrv_02_mqtt.ino
@@ -567,6 +571,7 @@
   #define D_JSON_IR_DATALSB "DataLSB"
   #define D_JSON_IR_HASH "Hash"
   #define D_JSON_IR_RAWDATA "RawData"
+  #define D_JSON_IR_FREQUENCY "Frequency"
   #define D_JSON_IR_REPEAT "Repeat"
   #define D_JSON_IR_CHANNEL "Channel"
 #define D_CMND_IRHVAC "IRHVAC"
@@ -780,7 +785,8 @@
 #define D_CMND_SHUTTER_FREQUENCY "Frequency"
 #define D_CMND_SHUTTER_BUTTON "Button"
 #define D_CMND_SHUTTER_LOCK "Lock"
-#define D_CMND_SHUTTER_ENABLEENDSTOPTIME "EnableEndStopTime"
+#define D_CMND_SHUTTER_OPENENDSTOPTIME "OpenEndStopTime"
+#define D_CMND_SHUTTER_CLOSEENDSTOPTIME "CloseEndStopTime"
 #define D_CMND_SHUTTER_INVERTWEBBUTTONS "InvertWebButtons"
 #define D_CMND_SHUTTER_PWMRANGE "PWMRange"
 #define D_CMND_SHUTTER_UNITTEST "UnitTest"
@@ -1003,6 +1009,7 @@ const char HTTP_SNS_PRESSURE[]      PROGMEM = "{s}%s "  D_PRESSURE            "{
 const char HTTP_SNS_SEAPRESSURE[]   PROGMEM = "{s}%s "  D_PRESSUREATSEALEVEL  "{m}%s "                          "%s{e}";
 const char HTTP_SNS_ANALOG[]        PROGMEM = "{s}%s "  D_ANALOG_INPUT      "%d{m}%d"                             "{e}";
 const char HTTP_SNS_ILLUMINANCE[]   PROGMEM = "{s}%s "  D_ILLUMINANCE         "{m}%d " D_UNIT_LUX                 "{e}";
+const char HTTP_SNS_S_ILLUMINANCE[] PROGMEM = "{s}%s "  D_ILLUMINANCE         "{m}%s " D_UNIT_LUX                 "{e}";
 const char HTTP_SNS_CO2[]           PROGMEM = "{s}%s "  D_CO2                 "{m}%d " D_UNIT_PARTS_PER_MILLION   "{e}";
 const char HTTP_SNS_CO2EAVG[]       PROGMEM = "{s}%s "  D_ECO2                "{m}%d " D_UNIT_PARTS_PER_MILLION   "{e}";
 const char HTTP_SNS_GALLONS[]       PROGMEM = "{s}%s "  D_TOTAL_USAGE         "{m}%s " D_UNIT_GALLONS             "{e}";

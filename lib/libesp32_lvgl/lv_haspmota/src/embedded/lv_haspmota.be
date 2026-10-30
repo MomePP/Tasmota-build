@@ -62,7 +62,7 @@ class Antiburn
         self.antiburn = antiburn
       end
       self.antiburn.set_style_bg_opa(255, 0)
-      self.antiburn.add_flag(lv.OBJ_FLAG_CLICKABLE)
+      self.antiburn.set_clickable(true)
       self.antiburn.move_foreground()
 
       self.running = true
@@ -81,7 +81,7 @@ class Antiburn
   def stop()
     if self.running && self.antiburn != nil
       self.antiburn.set_style_bg_opa(0, 0)
-      self.antiburn.clear_flag(lv.OBJ_FLAG_CLICKABLE)
+      self.antiburn.set_clickable(false)
       self.running = false
       self.antiburn.del()
       self.antiburn = nil
@@ -110,7 +110,7 @@ class DimmedPanel
       panel.set_width(lv.get_hor_res())
       panel.set_height(lv.get_ver_res())
 
-      panel.add_flag(lv.OBJ_FLAG_CLICKABLE)
+      panel.set_clickable(true)
       panel.add_event_cb(/->self.stop(), lv.EVENT_PRESSED, 0)
       self.panel = panel
     end
@@ -469,19 +469,22 @@ class lvh_root
   # 05 = styling for disabled and toggled state
   #
   # LV_STATE_DEFAULT     =  0x0000,
-  # LV_STATE_CHECKED     =  0x0001,
-  # LV_STATE_FOCUSED     =  0x0002,
-  # LV_STATE_FOCUS_KEY   =  0x0004,
-  # LV_STATE_EDITED      =  0x0008,
-  # LV_STATE_HOVERED     =  0x0010,
-  # LV_STATE_PRESSED     =  0x0020,
-  # LV_STATE_SCROLLED    =  0x0040,
-  # LV_STATE_DISABLED    =  0x0080,
-
+  # LV_STATE_ALT         =  0x0001,
+  #                         0x0002 reserved
+  # LV_STATE_CHECKED     =  0x0004,
+  # LV_STATE_FOCUSED     =  0x0008,
+  # LV_STATE_FOCUS_KEY   =  0x0010,
+  # LV_STATE_EDITED      =  0x0020,
+  # LV_STATE_HOVERED     =  0x0040,
+  # LV_STATE_PRESSED     =  0x0080,
+  # LV_STATE_SCROLLED    =  0x0100,
+  # LV_STATE_DISABLED    =  0x0200,
+  #                         0x0400, 0x0800 reserved
   # LV_STATE_USER_1      =  0x1000,
   # LV_STATE_USER_2      =  0x2000,
   # LV_STATE_USER_3      =  0x4000,
   # LV_STATE_USER_4      =  0x8000,
+  # LV_STATE_ANY         =  0xFFFF,
   #
   #- ------------------------------------------------------------#
   static var _digit2part = [
@@ -820,28 +823,20 @@ class lvh_obj : lvh_root
   #====================================================================
   #- `hidden` attributes mapped to OBJ_FLAG_HIDDEN -#
   def set_hidden(h)
-    if h
-      self._lv_obj.add_flag(lv.OBJ_FLAG_HIDDEN)
-    else
-      self._lv_obj.clear_flag(lv.OBJ_FLAG_HIDDEN)
-    end
+    self._lv_obj.set_hidden(bool(h))      # LVGL 9.6 setters require a real `bool`
   end
   def get_hidden()
-    return self._lv_obj.has_flag(lv.OBJ_FLAG_HIDDEN)
+    return self._lv_obj.is_hidden()
   end
 
   #====================================================================
   #  `enabled` attributes mapped to STATE_DISABLED
   #====================================================================
   def set_enabled(h)
-    if h
-      self._lv_obj.clear_state(lv.STATE_DISABLED)
-    else
-      self._lv_obj.add_state(lv.STATE_DISABLED)
-    end
+    self._lv_obj.set_disabled(!h)
   end
   def get_enabled()
-    return !self._lv_obj.has_state(lv.STATE_DISABLED)
+    return !self._lv_obj.is_disabled()
   end
 
   #====================================================================
@@ -871,28 +866,20 @@ class lvh_obj : lvh_root
       elif t == "FALSE" t = false
       end
     end
-    if t
-      self._lv_obj.add_state(lv.STATE_CHECKED)
-    else
-      self._lv_obj.clear_state(lv.STATE_CHECKED)
-    end
+    self._lv_obj.set_checked(bool(t))
   end
   def get_toggle()
-    return self._lv_obj.has_state(lv.STATE_CHECKED)
+    return self._lv_obj.is_checked()
   end
 
   #====================================================================
   #  `adjustable` flag
   #====================================================================
   def set_adjustable(t)
-    if t
-      self._lv_obj.add_flag(lv.OBJ_FLAG_CLICKABLE)
-    else
-      self._lv_obj.clear_flag(lv.OBJ_FLAG_CLICKABLE)
-    end
+    self._lv_obj.set_clickable(bool(t))
   end
   def get_adjustable()
-    return self._lv_obj.has_flag(lv.OBJ_FLAG_CLICKABLE)
+    return self._lv_obj.is_clickable()
   end
 
   #====================================================================
@@ -980,14 +967,10 @@ class lvh_obj : lvh_root
   # Force flex child on a new line
   #====================================================================
   def set_flex_in_new_track(t)
-    if t
-      self._lv_obj.add_flag(lv.OBJ_FLAG_FLEX_IN_NEW_TRACK)
-    else
-      self._lv_obj.clear_flag(lv.OBJ_FLAG_FLEX_IN_NEW_TRACK)
-    end
+    self._lv_obj.set_flex_in_new_track(bool(t))
   end
   def get_flex_in_new_track()
-    return self._lv_obj.has_flag(lv.OBJ_FLAG_FLEX_IN_NEW_TRACK)
+    return self._lv_obj.is_flex_in_new_track()
   end
 
   #====================================================================
@@ -1104,8 +1087,12 @@ class lvh_obj : lvh_root
       self._lv_obj.set_value(t)
     end
   end
-  def get_val()
-    return self._lv_obj.get_value()
+  def get_val()   # if there is no underlining `get_value()` native class, return `nil` instead of exception
+    import introspect
+    if introspect.contains(self._lv_obj, "get_value")
+      return self._lv_obj.get_value()
+    end
+    return nil
   end
   #====================================================================
   #  `radius2`
@@ -1185,12 +1172,17 @@ class lvh_obj : lvh_root
 
   #- ------------------------------------------------------------#
   # `setmember` virtual setter
+  #
+  # accepts an optional `lv_obj` if the target is not the same as `self._lv_obj`
   #- ------------------------------------------------------------#
-  def setmember(k, v)
+  def setmember(k, v, lv_obj)
     import string
     import introspect
 
     if string.startswith(k, "set_") || string.startswith(k, "get_")   return end
+    if lv_obj == nil
+      lv_obj = self._lv_obj
+    end
 
     # if value is 'real', round to nearest int
     if type(v) == 'real'
@@ -1239,19 +1231,19 @@ class lvh_obj : lvh_root
     
     # try first `set_X` from lvgl object
     if (style_modifier == nil)
-      f = introspect.get(self._lv_obj, "set_" + k)
+      f = introspect.get(lv_obj, "set_" + k)
       if type(f) == 'function'                  # found and function, call it
         # print(f">>>: setmember standard method set_{k}")
-        return f(self._lv_obj, v)
+        return f(lv_obj, v)
       end
     end
 
     # if not found, try `set_style_X`
-    f = introspect.get(self._lv_obj, "set_style_" + k)
+    f = introspect.get(lv_obj, "set_style_" + k)
     if type(f) == 'function'                  # found and function, call it
       # print(f">>>: setmember style_ method set_{k}")
       # style function need a selector as second parameter
-      return f(self._lv_obj, v, style_modifier != nil ? style_modifier : 0)
+      return f(lv_obj, v, style_modifier != nil ? style_modifier : 0)
     end
 
     print("HSP: unknown attribute:", k)
@@ -2002,13 +1994,15 @@ class lvh_scale_section : lvh_root
     # check if it is the parent is a spangroup
     if isinstance(self._parent_lvh, self._page._hm.lvh_scale)
       # print(">>> GOOD")
-      self._lv_obj = self._parent_lvh._lv_obj.add_section()
+      var scale = self._parent_lvh._lv_obj
+      self._lv_obj = scale.add_section()
+      # LVGL 9.6: `section.set_style(part, style)` is deprecated, use `scale.set_section_style_<part>(section, style)`
       self._style = lv.style()        # we create a specific lv.style object for this object
-      self._lv_obj.set_style(lv.PART_MAIN, self._style)
+      scale.set_section_style_main(self._lv_obj, self._style)
       self._style10 = lv.style()        # we create a specific lv.style object for this object
-      self._lv_obj.set_style(lv.PART_INDICATOR, self._style10)
+      scale.set_section_style_indicator(self._lv_obj, self._style10)
       self._style30 = lv.style()        # we create a specific lv.style object for this object
-      self._lv_obj.set_style(lv.PART_ITEMS, self._style30)
+      scale.set_section_style_items(self._lv_obj, self._style30)
     else
       print("HSP: 'scale_section' should have a parent of type 'scale'")
     end
@@ -2172,8 +2166,14 @@ class lvh_spangroup : lvh_obj
   static var _lv_class = lv.spangroup
   # label do not need a sub-label
   def post_init(jline)
-    self._lv_obj.set_mode(lv.SPAN_MODE_BREAK)           # use lv.SPAN_MODE_BREAK by default
-    self._lv_obj.refresh()
+    # LVGL 9.6: `set_mode(lv.SPAN_MODE_BREAK)` is deprecated, below is its equivalent:
+    # keep width (100 if it was LV_SIZE_CONTENT), break long lines and expand height
+    var o = self._lv_obj
+    if o.get_style_width(lv.PART_MAIN) == lv.SIZE_CONTENT
+      o.set_width(100)
+    end
+    o.set_height(lv.SIZE_CONTENT)
+    o.refresh()
     super(self).post_init(jline)         # call super -- not needed
   end
   # refresh mode
@@ -2704,11 +2704,37 @@ class lvh_checkbox : lvh_obj
     return self.get_toggle()
   end
 end
-# class lvh_textarea : lvh_obj    static var _lv_class = lv.textarea    end
+#@ solidify:lvh_textarea,weak
+class lvh_textarea : lvh_obj
+  static var _lv_class = lv.textarea
+  def get_val()   return self._lv_obj.get_text()      end
+  def set_val(t)  self._lv_obj.set_text(str(t))       end
+end
 # special case for scr (which is actually lv_obj)
 #@ solidify:lvh_scr,weak
 class lvh_scr : lvh_obj
   static var _lv_class = nil    # no class for screen
+
+  def setmember(k, v)
+    import string
+
+    if string.startswith(k, "bg_")
+      var page = self._page
+      if page._page_id == 0 && page._lv_scr_bottom != nil
+        return super(self).setmember(k, v, page._lv_scr_bottom)
+      else
+        # special case when we set `bg_color` and `bg_opa` is `0`, then we force opacity
+        if k == "bg_color" && self._lv_obj.get_style_bg_opa(0) == 0
+          self._lv_obj.set_style_bg_opa(255, 0)
+        end
+      end
+    end
+    return super(self).setmember(k, v)
+  end
+
+  # def set_bg_color(a,b,c)
+  #   log(f">>>: lvh_scr.set_bg_color {a=} {b=} {c=}")
+  # end
 end
 
 
@@ -2724,6 +2750,7 @@ class lvh_page
   var _obj_id               # (map) of `lvh_obj` objects by id numbers
   var _page_id              # (int) id number of this page
   var _lv_scr               # (lv_obj) lvgl screen object
+  var _lv_scr_bottom        # (lv_obj) lvgl screen object for background
   var _hm                   # HASPmota global object
   # haspmota attributes for page are on item `#0`
   var prev, next, back      # (int) id values for `prev`, `next`, `back` buttons
@@ -2753,8 +2780,13 @@ class lvh_page
     # page 1 is mapped directly to the default screen `scr_act`
     if page_number == 0
       self._lv_scr = lv.layer_top() # top layer, visible over all screens
+      self._lv_scr_bottom = lv.layer_bottom() # bottom layer, used to set background colors
+      # set top transparent and bottom opaque
+      self._lv_scr.set_style_bg_opa(0, 0)
+      self._lv_scr_bottom.set_style_bg_opa(255, 0)
     else
       self._lv_scr = lv.obj(0)      # allocate a new screen
+      self._lv_scr.set_style_bg_opa(0, 0) # force new screen to transparent, unless its color is decided
     end
 
     # page object is also stored in the object map at id `0` as instance of `lvg_scr`
@@ -2842,7 +2874,7 @@ class lvh_page
   end
 
   #====================================================================
-  #  `delete` special attribute used to delete the object
+  #  `clear` special attribute
   #====================================================================
   def get_clear()
     self._clear()
@@ -2868,6 +2900,9 @@ class lvh_page
     end
     self._obj_id = {}       # clear map
   end
+  #====================================================================
+  #  `delete` special attribute used to delete the object
+  #====================================================================
   def get_delete()
     self._delete()
     return def () end
@@ -2987,7 +3022,9 @@ class HASPmota
 	static lvh_arc = lvh_arc
  	# static lvh_linemeter = lvh_linemeter
  	# static lvh_gauge = lvh_gauge
-	# static lvh_textarea = lvh_textarea    # additional?
+#if BE_LV_WIDGET_TEXTAREA
+	static lvh_textarea = lvh_textarea    # conditional
+#endif
   static lvh_led = lvh_led
   static lvh_scale = lvh_scale
   static lvh_scale_section = lvh_scale_section
@@ -3081,18 +3118,24 @@ class HASPmota
     end
 
     # set the theme for HASPmota
-    var primary_color = self.lvh_root.parse_color(tasmota.webcolor(10 #-COL_BUTTON-#))
-    var secondary_color = self.lvh_root.parse_color(tasmota.webcolor(11 #-COL_BUTTON_HOVER-#))
-    var color_scr = self.lvh_root.parse_color(tasmota.webcolor(1 #-COL_BACKGROUND-#))
+    # var primary_color = self.lvh_root.parse_color(tasmota.webcolor(10 #-COL_BUTTON-#))
+    # var secondary_color = self.lvh_root.parse_color(tasmota.webcolor(11 #-COL_BUTTON_HOVER-#))
+    var primary_color = lv.color(0x1FA3EC)
+    var secondary_color = lv.color(0x0E70A4)
+    # var color_scr = self.lvh_root.parse_color(tasmota.webcolor(1 #-COL_BACKGROUND-#))
+    var color_scr = lv.color(0x000088)
     var color_text = self.lvh_root.parse_color(tasmota.webcolor(9 #-COL_BUTTON_TEXT-#))
-    var color_card = self.lvh_root.parse_color(tasmota.webcolor(2 #-COL_FORM-#))
-    var color_grey = self.lvh_root.parse_color(tasmota.webcolor(2 #-COL_FORM-#))
-    var color_reset = self.lvh_root.parse_color(tasmota.webcolor(12 #-COL_BUTTON_RESET-#))
-    var color_reset_hover = self.lvh_root.parse_color(tasmota.webcolor(13 #-COL_BUTTON_RESET_HOVER-#))
-    var color_save = self.lvh_root.parse_color(tasmota.webcolor(14 #-COL_BUTTON_SAVE-#))
-    var color_save_hover = self.lvh_root.parse_color(tasmota.webcolor(15 #-COL_BUTTON_SAVE_HOVER-#))
-    var colors = lv.color_arr([primary_color, secondary_color, color_scr, color_text, color_card, color_grey,
-                               color_reset, color_reset_hover, color_save, color_save_hover])
+    # var color_card = self.lvh_root.parse_color(tasmota.webcolor(2 #-COL_FORM-#))
+    # var color_grey = self.lvh_root.parse_color(tasmota.webcolor(2 #-COL_FORM-#))
+    var color_card = lv.color(0x000044)
+    var color_grey = lv.color(0x4F4F4F)
+    # var color_reset = self.lvh_root.parse_color(tasmota.webcolor(12 #-COL_BUTTON_RESET-#))
+    # var color_reset_hover = self.lvh_root.parse_color(tasmota.webcolor(13 #-COL_BUTTON_RESET_HOVER-#))
+    # var color_save = self.lvh_root.parse_color(tasmota.webcolor(14 #-COL_BUTTON_SAVE-#))
+    # var color_save_hover = self.lvh_root.parse_color(tasmota.webcolor(15 #-COL_BUTTON_SAVE_HOVER-#))
+    var colors = lv.color_arr([primary_color, secondary_color, color_scr, color_text, color_card, color_grey])
+                               # ,color_reset, color_reset_hover, color_save, color_save_hover
+                              
     
     var th2 = lv.theme_haspmota_init(0, colors,
                                      self.r12, self.r16, self.r24)
@@ -3472,6 +3515,22 @@ class HASPmota
         jline.remove("dimming_min")
         jline.remove("dimming_duration")
         jline.remove("antiburn")
+        # `touch_pointer`: true/false, or a color like "#FF0000" (implies true)
+        # `touch_pointer_size`: diameter in pixels (default 30)
+        var touch_pointer = jline.find("touch_pointer")
+        if touch_pointer != nil
+          var tp_color
+          if type(touch_pointer) == 'string'
+            tp_color = self.lvh_root.parse_color(touch_pointer)
+            touch_pointer = true
+          end
+          var tp_size = jline.find("touch_pointer_size")
+          if !lv.touch_pointer(bool(touch_pointer), tp_color, tp_size != nil ? int(tp_size) : nil) && touch_pointer
+            log("HSP: 'touch_pointer' needs a touch screen", 2)
+          end
+        end
+        jline.remove("touch_pointer")
+        jline.remove("touch_pointer_size")
       end
     end
   end
@@ -3607,7 +3666,17 @@ class HASPmota
         end
       end
 
-      # Step 3.d. if not found, try to load a module with the name of the class
+      # Step 3.d. if not found, try `lv.<name>` as direct mapping of LVGL class
+      if obj_class == nil
+        # if not found, check if a LVGL class with name `lv.<name>` exists
+        var lv_cl = introspect.get(lv, obj_type)
+        if (lv_cl != nil) && (type(lv_cl) == 'class')
+          lv_instance = lv_cl(parent_lvgl)
+          obj_class = self.lvh_obj           # use the basic lvh_obj component to encapsulate
+        end
+      end
+
+      # Step 3.e. if not found, try to load a module with the name of the class
       if obj_class == nil
         var lv_cl = introspect.module(obj_type)
         if lv_cl != nil && type(lv_cl) == 'class'

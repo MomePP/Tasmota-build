@@ -1,5 +1,5 @@
 /*
- * xdrv_52_3_berry_webserver.ino — Berry scripting language, webserver/webclient module
+ * xdrv_52_3_berry_webclient.ino — Berry scripting language, webclient/TCP client module
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
@@ -423,7 +423,7 @@ extern "C" {
   int32_t wc_addheader(struct bvm *vm);
   int32_t wc_addheader(struct bvm *vm) {
     int32_t argc = be_top(vm);
-    if (argc >= 3 && (be_isstring(vm, 2) || be_isstring(vm, 2))) {
+    if (argc >= 3 && be_isstring(vm, 2) && be_isstring(vm, 3)) {
 #ifdef USE_BERRY_WEBCLIENT_ASYNC
       AsyncHttpClientLight * cl = wc_getclient(vm);
 #else
@@ -537,7 +537,7 @@ extern "C" {
       if (httpCode <= -1000) {
         AddLog(LOG_LEVEL_INFO, D_LOG_HTTP "TLS connection error %d after %d ms", -httpCode - 1000, millis() - http_connect_time);
       } else if (httpCode == -1) {
-        AddLog(LOG_LEVEL_INFO, D_LOG_HTTP "Connection timeout after %d ms", httpCode, millis() - http_connect_time);
+        AddLog(LOG_LEVEL_INFO, D_LOG_HTTP "Connection timeout after %d ms", millis() - http_connect_time);
       } else {
         AddLog(LOG_LEVEL_INFO, D_LOG_HTTP "Connection error %d after %d ms", httpCode, millis() - http_connect_time);
       }
@@ -697,10 +697,13 @@ extern "C" {
     } else if (be_isbytes(vm, 2)) {
       size_t len = 0;
       const uint8_t * p = (const uint8_t *) be_tobytes(vm, 2, &len);
-      // drž payload, aby ho GC nevyhodil kým beží job
-      be_pushvalue(vm, 2);
-      be_setmember(vm, 1, ".__async_hold");
       int32_t rc = cl->asyncPOSTStart((uint8_t*)p, len);
+      if (rc == 1) {
+        // Keep the payload alive only after the worker accepts ownership.
+        // It remains rooted as argument 2 throughout this native call.
+        be_pushvalue(vm, 2);
+        be_setmember(vm, 1, ".__async_hold");
+      }
       be_pushint(vm, rc);
       be_return(vm);
     }
@@ -985,13 +988,13 @@ public:
     // AddLog(LOG_LEVEL_INFO, "FLASH: addr=%p  hex=%*_H  size=%i", addr_start + offset, 32, buffer, size);
     if (offset + size > signed_size){
       AddLog(LOG_LEVEL_ERROR, "BERRYWC: buffer overrun");
-      return size;
+      return 0;
     }
 
     char *bytebuf = (char*) be_tobytes(vm, -1, NULL); /* we get the address of the internam buffer of size 'size' */
     if (!bytebuf){
       AddLog(LOG_LEVEL_ERROR, "BERRYWC: buffer null??");
-      return size;
+      return 0;
     }
 
     // stream in our chunk

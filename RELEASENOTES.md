@@ -36,9 +36,9 @@ While fallback or downgrading is common practice it was never supported due to S
 
 This release will be supported from ESP8266/Arduino library Core version **2.7.8** due to reported security and stability issues on previous Core version. This will also support gzipped binaries.
 
-This release will be supported from ESP32/Arduino library Core version **v3.3.8**.
+This release will be supported from ESP32/Arduino library Core version **v3.3.12**.
 
-Support of ESP8266 Core versions before 2.7.8 and ESP32 Core versions before v3.3.8 have been removed.
+Support of ESP8266 Core versions before 2.7.8 and ESP32 Core versions before v3.3.12 have been removed.
 
 ## Initial configuration tools
 
@@ -71,12 +71,12 @@ Latest released binaries can be downloaded from
 - http://ota.tasmota.com/tasmota/release
 
 Historical binaries can be downloaded from
-- http://ota.tasmota.com/tasmota/release-15.4.0
+- http://ota.tasmota.com/tasmota/release-16.0.0
 
 The latter links can be used for OTA upgrades too like ``OtaUrl http://ota.tasmota.com/tasmota/release/tasmota.bin.gz``
 
-### ESP32, ESP32-C2, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-P4, ESP32-S2 and ESP32-S3 based
-The following binary downloads have been compiled with ESP32/Arduino library core version **v3.3.8**.
+### ESP32, ESP32-C2, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-C61, ESP32-P4, ESP32-P4R3, ESP32-S2 and ESP32-S3 based
+The following binary downloads have been compiled with ESP32/Arduino library core version **v3.3.12**.
 
 - **tasmota32.bin** = The Tasmota version with most drivers including additional sensors and KNX for 4M+ flash.  **RECOMMENDED RELEASE BINARY**
 - **tasmota32solo1.bin** = The Tasmota version with most drivers including additional sensors and KNX for single core ESP32 and 4M+ flash.
@@ -84,7 +84,9 @@ The following binary downloads have been compiled with ESP32/Arduino library cor
 - **tasmota32c3.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-C3 with USB HWCDC and fallback to serial and 4M+ flash.
 - **tasmota32c5.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-C5 with USB HWCDC and fallback to serial and 4M+ flash.
 - **tasmota32c6.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-C6 with USB HWCDC and fallback to serial and 4M+ flash.
-- **tasmota32p4.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-P4 with USB HWCDC and fallback to serial and 4M+ flash.
+- **tasmota32c61.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-C61 with USB HWCDC and fallback to serial and 4M+ flash.
+- **tasmota32p4.bin** = The Tasmota version with most drivers including additional sensors and KNX for first generation ESP32-P4 with USB HWCDC and fallback to serial and 4M+ flash.
+- **tasmota32p4r3.bin** = The Tasmota version with most drivers including additional sensors and KNX for new generation ESP32-P4 with USB HWCDC and fallback to serial and 4M+ flash.
 - **tasmota32s2.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-S2 with serial and 4M+ flash.
 - **tasmota32s2cdc.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-S2 with serial over embedded USB CDC only and 4M+ flash.
 - **tasmota32s3.bin** = The Tasmota version with most drivers including additional sensors and KNX for ESP32-S3 with USB HWCDC and fallback to serial and 4M+ flash.
@@ -102,7 +104,7 @@ Latest released binaries can be downloaded from
 - https://ota.tasmota.com/tasmota32/release
 
 Historical binaries can be downloaded from
-- https://ota.tasmota.com/tasmota32/release-15.4.0
+- https://ota.tasmota.com/tasmota32/release-16.0.0
 
 The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasmota.com/tasmota32/release/tasmota32.bin``
 
@@ -112,37 +114,28 @@ The latter links can be used for OTA upgrades too like ``OtaUrl https://ota.tasm
 
 [Complete list](BUILDS.md) of available feature and sensors.
 
-## Changelog v15.4.0.2
+## Changelog v16.0.0.1
 ### Added
-- Command `SetOption [0..2]` to display SetOption values
-- Command `WcResolution 0..24` increasing camera max resolution from 14 to 24
-- Support for hostname generation using single-specifier Format() patterns [#24731](https://github.com/arendst/Tasmota/issues/24731)
-- Support for Modbus RX Enable GPIO [#24726](https://github.com/arendst/Tasmota/issues/24726)
-- Support for multi-byte chars like emojis (💡) in light device toggle buttons [#24482](https://github.com/arendst/Tasmota/issues/24482)
-- Support for M5Stack Atom S3R drivers [#24747](https://github.com/arendst/Tasmota/issues/24747)
-- Support for uDisplay ST7305 [#24738](https://github.com/arendst/Tasmota/issues/24738)
-- Support for hosted MCU different from esp32c6
-- MiElHVAC extend support of AirDirection control [#24675](https://github.com/arendst/Tasmota/issues/24675)
-- ESP32 VID6608 hardware RMT support for Automotive gauge driver [#24759](https://github.com/arendst/Tasmota/issues/24759)
-- Berry add support for pre-processor [#24679](https://github.com/arendst/Tasmota/issues/24679)
-- Berry transpose C defines to Berry in `tasmota_defines_for_berry.be` [#24680](https://github.com/arendst/Tasmota/issues/24680)
-- Berry RGBW white blend and 10-bit gamma support to Berry LED pixel rendering [#24750](https://github.com/arendst/Tasmota/issues/24750)
-- Berry manual tool to compare and verify solidification between C and Python [#24754](https://github.com/arendst/Tasmota/issues/24754)
+- TuyaMCU pace outgoing frames so the MCU is never written to back-to-back [#25151](https://github.com/arendst/Tasmota/issues/25151)
+- uDisplay support for SPI QSPI displays [#25156](https://github.com/arendst/Tasmota/issues/25156)
+- BLE timeout and eQ3 TRV enhancements [#25173](https://github.com/arendst/Tasmota/issues/25173)
+- Support MAC OUI wildcard for command MI32Keys in case multiple devices use same bindkey like IoTorero: `mi32keys 0C3D5EFFFFFF=48656c6c6f204254486f6d65210d0a00`
+- LVGL add logging before crash when heap allocation fails [#25170](https://github.com/arendst/Tasmota/issues/25170)
+- LVGL/HASPmota visual touch pointer (dot under finger) [#25158](https://github.com/arendst/Tasmota/issues/25158)
 
 ### Breaking Changed
+- BTHome un-reverse MAC address usage for command `MI32Keys` to make it consistent
 
 ### Changed
-- ESP32 Platform from 2025.04.30 to 2026.05.50, Framework (Arduino Core) from v3.1.11 to v3.3.8.260506 and IDF from v5.3.4.260127 to v5.5.4.260407 [#24718](https://github.com/arendst/Tasmota/issues/24718)
-- Increase security by inverting state of `define DISABLE_REFERER_CHK` controlling remote HTTP access which is now default off
-- ESP8266 wrap printf and replace with stubs reducing flash size by 6k [#24714](https://github.com/arendst/Tasmota/issues/24714)
-- Move autoconf repository to `ota.tasmota.com` [#24754](https://github.com/arendst/Tasmota/issues/24754)
-- Berry `format()` now uses internal `ext_snprintf_P()` for floating point formatting [#24725](https://github.com/arendst/Tasmota/issues/24725)
-- LVGL splash screen uses default Montserrat-14 instead of Montserrat-20 on small screens [#24735](https://github.com/arendst/Tasmota/issues/24735)
 
 ### Fixed
-- I80 pushColors swap logic for parallel displays [#24766](https://github.com/arendst/Tasmota/issues/24766)
-- NeoPool possible overflow/div-zero errors and Hydrolysis module detection [#24724](https://github.com/arendst/Tasmota/issues/24724)
-- Seesaw encoder position tracking in light control mode [#24730](https://github.com/arendst/Tasmota/issues/24730)
+- Security issues caused by buffer overflows
+- WifiManager name the setup AP as it is turned on [#25169](https://github.com/arendst/Tasmota/issues/25169)
+- VEML7700 lux/white rounding, add new command [#25150](https://github.com/arendst/Tasmota/issues/25150)
+- ESP32 `PWMFrequency` < 8 result in WDT exception after restart [#25155](https://github.com/arendst/Tasmota/issues/25155)
+- MiEL HVAC Modbus no response timeouts now serves the RS485 slave from its own task [#25157](https://github.com/arendst/Tasmota/issues/25157)
+- LVGL Panel extension crash [#25165](https://github.com/arendst/Tasmota/issues/25165)
+- LVGL Panel improved click handling [#25171](https://github.com/arendst/Tasmota/issues/25171)
+- LVGL touch more responsive [#25172](https://github.com/arendst/Tasmota/issues/25172)
 
 ### Removed
-- `USE_UNIVERSAL_TOUCH` no more forced when `USE_UNIVERSAL_DISPLAY` is enabled [#24743](https://github.com/arendst/Tasmota/issues/24743)

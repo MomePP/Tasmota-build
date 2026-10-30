@@ -141,6 +141,12 @@ const uint8_t DISPLAY_LOG_ROWS = 32;           // Number of lines in display log
 #define D_CMND_DISP_SCROLLTEXT "ScrollText"
 #define D_CMND_DISP_REINIT "reinit"
 
+// RGB panel sync guard, recovers a shifted image (see uDisplay_RGB_panel.cpp)
+#if defined(USE_UNIVERSAL_DISPLAY) && defined(SOC_LCD_RGB_SUPPORTED)
+#define USE_DISPLAY_RGB_GUARD
+bool udisp_rgb_guard_poll(char *buf, size_t len);
+#endif
+
 enum XdspFunctions { FUNC_DISPLAY_INIT_DRIVER, FUNC_DISPLAY_INIT, FUNC_DISPLAY_EVERY_50_MSECOND, FUNC_DISPLAY_EVERY_SECOND,
                      FUNC_DISPLAY_MODEL, FUNC_DISPLAY_MODE, FUNC_DISPLAY_POWER,
                      FUNC_DISPLAY_CLEAR, FUNC_DISPLAY_DRAW_FRAME,
@@ -1379,8 +1385,8 @@ void define_dt_var(uint32_t num, uint32_t xp, uint32_t yp,  uint32_t txtbcol,  u
     return;
   }
   dtp->rstr[0] = 0;
-  strcpy(dtp->unit, unit);
-  strcpy(dtp->jstrbuf, jstr);
+  strlcpy(dtp->unit, unit, sizeof(dtp->unit));
+  strlcpy(dtp->jstrbuf, jstr, jlen+2);
   if (!time) time = 1;
   dtp->timer = time;
 }
@@ -1398,9 +1404,9 @@ void draw_dt_vars(void) {
           dtp->timer = dtp->time;
           char vstr[MAX_DVTSIZE + 7];
           memset(vstr, ' ', sizeof(vstr));
-          strcpy(vstr, dtp->rstr);
-          strcat(vstr, " ");
-          strcat(vstr, dtp->unit);
+          strlcpy(vstr, dtp->rstr, sizeof(vstr));
+          strlcat(vstr, " ", sizeof(vstr));
+          strlcat(vstr, dtp->unit, sizeof(vstr));
           uint16_t slen = strlen(vstr);
           vstr[slen] = ' ';
 
@@ -1488,7 +1494,7 @@ void get_dt_vars(char *json) {
           if (res) {
             if (dt_vars[cnt]->dp < 0) {
               // use string
-              strcpy(dt_vars[cnt]->rstr, sbuf);
+              strlcpy(dt_vars[cnt]->rstr, sbuf, sizeof(dt_vars[cnt]->rstr));
             } else {
               // convert back and forth
               dtostrfd(CharToFloat(sbuf), dt_vars[cnt]->dp, dt_vars[cnt]->rstr);
@@ -1732,7 +1738,7 @@ void DisplayJsonValue(const char* topic, const char* mkey, const char* value) {
   uint32_t size = strlen(topic);
   if ((Settings->display_rows > 4) && size) {                             // Skip header if less than five rows
     if (strcmp(topic, disp_topic)) {                                      // Show topic header only once
-      strcpy(disp_topic, topic);
+      strlcpy(disp_topic, topic, sizeof(disp_topic));
       char buffer2[Settings->display_cols[0] +1];                         // Max sized buffer string
       memset(buffer2, '-', sizeof(buffer2));                              // Set to -
       buffer2[sizeof(buffer2) -1] = '\0';
@@ -2367,6 +2373,15 @@ void DisplayReInitDriver(void) {
   ResponseCmndDone();
 }
 
+#ifdef USE_DISPLAY_RGB_GUARD
+void DisplayRgbGuardEverySecond(void) {
+  char buf[200];
+  if (udisp_rgb_guard_poll(buf, sizeof(buf))) {
+    AddLog(LOG_LEVEL_DEBUG, PSTR("DSP: RGB resync %s"), buf);
+  }
+}
+#endif // USE_DISPLAY_RGB_GUARD
+
 /*********************************************************************************************\
  * Optional drivers
 \*********************************************************************************************/
@@ -2375,7 +2390,7 @@ void DisplayReInitDriver(void) {
 // very limited path size, so, add .jpg
 void draw_picture(char *path, uint32_t xp, uint32_t yp, uint32_t xs, uint32_t ys, uint32_t ocol, bool inverted) {
 char ppath[16];
-  strcpy(ppath, path);
+  strlcpy(ppath, path, sizeof(ppath));
   uint8_t plen = strlen(path) -1;
   if (ppath[plen]=='1') {
     // index mode
@@ -2385,9 +2400,9 @@ char ppath[16];
     inverted = false;
   }
   if (ocol == 9) {
-    strcat(ppath, ".rgb");
+    strlcat(ppath, ".rgb", sizeof(ppath));
   } else {
-    strcat(ppath, ".jpg");
+    strlcat(ppath, ".jpg", sizeof(ppath));
   }
   Draw_RGB_Bitmap(ppath, xp, yp, 0, inverted, 0, 0);
 }
@@ -3095,6 +3110,9 @@ bool Xdrv13(uint32_t function) {
         DisplaySetPower();
         break;
       case FUNC_EVERY_SECOND:
+#ifdef USE_DISPLAY_RGB_GUARD
+        DisplayRgbGuardEverySecond();
+#endif  // USE_DISPLAY_RGB_GUARD
 #ifdef USE_GRAPH
         DisplayCheckGraph();
 #endif  // USE_GRAPH
