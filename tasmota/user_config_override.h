@@ -4782,6 +4782,13 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 #undef MODULE
 #define MODULE USER_MODULE
 
+// The GoGo host talks to the Tasmota console over UART0 (GPIO21 TX / GPIO20 RX, "Serial Tx"/"Serial Rx"
+// in the template above), so the console must always be UART0. The esp32c3 board defines
+// USE_USB_CDC_CONSOLE, which (1) moves the console to USB CDC whenever a USB host is plugged in and
+// (2) since Tasmota 16 (#25047, GpioInit) releases UART0 and persists SerialLog 0 when the template
+// assigns GPIO20/21, even to Serial Tx/Rx. Both silence the GoGo link.
+#undef USE_USB_CDC_CONSOLE
+
 #undef MQTT_USE
 #define MQTT_USE               true              // [SetOption3] Select default MQTT use (false = Off, true = On)
 
