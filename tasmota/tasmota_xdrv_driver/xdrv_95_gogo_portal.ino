@@ -27,7 +27,7 @@
  *
  *   Portal 1  Open the access point (open network, SSID = hostname, 192.168.4.1) for
  *             WIFI_CONFIG_SEC seconds. Asking again while it is open restarts the countdown.
- *             Needs Wi-Fi on (Wifi 1); with Wi-Fi off nothing opens.
+ *             Needs Wi-Fi on (Wifi 1); with Wi-Fi off nothing opens, and Wifi 0 while it is open closes it.
  *   Portal 0  Close it. Tasmota restarts, as it does when the countdown ends.
  *   Portal    Report the state.
  *
@@ -67,6 +67,8 @@ void CmndGogoPortal(void) {
   } else if (0 == XdrvMailbox.payload) {
     if (GogoPortalIsOpen()) {
       TasmotaGlobal.restart_flag = 2;
+    } else if (GogoPortalIsPending()) {
+      TasmotaGlobal.wifi_state_flag = WIFI_RESTART;
     }
     GogoPortalResponse(false, 0);
     return;
@@ -88,8 +90,20 @@ void CmndGogoPortal(void) {
 bool Xdrv95(uint32_t function) {
   bool result = false;
 
-  if (FUNC_COMMAND == function) {
-    result = DecodeCommand(kGogoPortalCommands, GogoPortalCommand);
+  switch (function) {
+    case FUNC_EVERY_SECOND:
+      if (GogoPortalIsOpen() && !Settings->flag4.network_wifi) {
+        TasmotaGlobal.restart_flag = 2;
+      }
+      break;
+    case FUNC_SAVE_BEFORE_RESTART:
+      if (GogoPortalIsOpen() && (MAX_WIFI_OPTION != Wifi.old_wificonfig)) {
+        Settings->sta_config = Wifi.old_wificonfig;
+      }
+      break;
+    case FUNC_COMMAND:
+      result = DecodeCommand(kGogoPortalCommands, GogoPortalCommand);
+      break;
   }
   return result;
 }
