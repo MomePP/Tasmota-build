@@ -4778,8 +4778,9 @@ o888o        o888ooooood8 o88o     o8888o     o888o     o888o o8o        `8     
 #undef WIFI_DEFAULT_HOSTNAME
 #define WIFI_DEFAULT_HOSTNAME  "gogo-%06X"
 
-// The setup portal (open AP) is never started by Tasmota itself. A joined device that cannot reach its
-// router retries (WIFI_RETRY), and a blank device stays quiet (GOGO_NO_AUTO_PORTAL, see support_wifi.ino).
+// While WifiConfig is 4 (WIFI_RETRY, the default and the pinned first-boot value) Tasmota never starts the setup
+// portal (open AP) by itself: a joined device that cannot reach its router retries, and a blank device stays quiet
+// (GOGO_NO_AUTO_PORTAL, see support_wifi.ino). A device that already stores another WifiConfig keeps it.
 // The GoGo opens the portal for 180 s with the Portal command (xdrv_95_gogo_portal.ino).
 #undef WIFI_CONFIG_TOOL
 #define WIFI_CONFIG_TOOL       WIFI_RETRY        // [WifiConfig] Default tool if Wi-Fi fails to connect (4 = retry, never open the portal)

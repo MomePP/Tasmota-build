@@ -1216,7 +1216,6 @@ void WifiCheckIp(void) {
       Wifi.status = 0;
       Wifi.retry = Wifi.retry_init;
       Wifi.max_retry = 0;
-      Wifi.counter = WIFI_CHECK_SEC;
       return;
     }
 #endif  // GOGO_NO_AUTO_PORTAL
