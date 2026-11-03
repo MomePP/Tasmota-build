@@ -22,8 +22,9 @@
  * Portal [1|0]
  *
  * With GOGO_NO_AUTO_PORTAL Tasmota never starts its setup access point by itself. This command
- * is the only way to open it. Nothing is stored: a restart always closes the portal, and
- * Settings->sta_config stays at WIFI_CONFIG_TOOL.
+ * is the only way to open it. The command itself stores nothing: a restart always closes the portal,
+ * and sta_config keeps the value it had (4, WIFI_RETRY, unless someone set another). A Save in the
+ * portal does store the typed SSId1 and password, even when its join test fails.
  *
  *   Portal 1  Open the access point (open network, SSID = hostname, 192.168.4.1) for
  *             WIFI_CONFIG_SEC seconds. Asking again while it is open restarts the countdown.
@@ -92,7 +93,7 @@ bool Xdrv95(uint32_t function) {
 
   switch (function) {
     case FUNC_EVERY_SECOND:
-      if (GogoPortalIsOpen() && !Settings->flag4.network_wifi) {
+      if (GogoPortalIsOpen() && !Settings->flag4.network_wifi && !TasmotaGlobal.restart_flag) {
         TasmotaGlobal.restart_flag = 2;
       }
       break;
