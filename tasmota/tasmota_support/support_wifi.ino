@@ -1211,6 +1211,15 @@ void WifiCheckIp(void) {
     Wifi.status = WL_CONNECTED;
   } else {
     WifiSetState(0);
+#ifdef GOGO_NO_AUTO_PORTAL
+    if (!strlen(SettingsText(SET_STASSID1)) && !strlen(SettingsText(SET_STASSID2))) {
+      Wifi.status = 0;
+      Wifi.retry = Wifi.retry_init;
+      Wifi.max_retry = 0;
+      Wifi.counter = WIFI_CHECK_SEC;
+      return;
+    }
+#endif  // GOGO_NO_AUTO_PORTAL
     uint8_t wifi_config_tool = Settings->sta_config;
     Wifi.status = (Wifi.retry &1) ? WiFi.status() : 0;  // Skip every second to reset result WiFi.status()
     switch (Wifi.status) {

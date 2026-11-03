@@ -4751,9 +4751,11 @@ bool Xdrv01(uint32_t function) {
 #endif  // USE_EMULATION
       break;
     case FUNC_EVERY_SECOND:
+#ifndef GOGO_NO_AUTO_PORTAL
       if (Web.initial_config) {
         Wifi.config_counter = 200;    // Do not restart the device if it has SSId Blank
       }
+#endif  // GOGO_NO_AUTO_PORTAL
       if (Wifi.wifi_test_counter) {
         Wifi.wifi_test_counter--;
         AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_WIFI D_TRYING_TO_CONNECT " %s"), SettingsText(SET_STASSID1));
